@@ -9,8 +9,8 @@ class controller_jonas(Controller):
 		
 		left = 0
 		right = 0
-		jump = 0
-		shoot = 0
+		jump = 1
+		shoot = 1
 		release = 0
 		
 		return [left, right, jump, shoot, release]
