@@ -6,8 +6,6 @@
 
 # imports framework
 import sys, os
-from tqdm import tqdm
-import pandas as pd
 
 from evoman.environment import Environment
 from experiment_util import *
@@ -37,5 +35,5 @@ for enemy in chosen_enemies:
                   player_controller=chosen_controller,
                   visuals=False))
 
-generate_controller_eval_data(envs, n_games, experiment_name)
+eval_controller(envs, n_games, experiment_name)
 watch_controller_play(envs) # Watch the controller play one game for each enemy
