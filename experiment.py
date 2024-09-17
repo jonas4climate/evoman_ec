@@ -30,6 +30,7 @@ env = Environment(experiment_name=experiment_name,
                   savelogs="yes",
                   timeexpire=3000,
                   clockprec="low",
-                  player_controller=chosen_controller
-                  )
+                  player_controller=chosen_controller,
+                  visuals=True)
+
 env.play()
