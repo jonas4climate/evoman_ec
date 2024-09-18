@@ -10,7 +10,6 @@ import sys, os
 from evoman.environment import Environment
 from experiment_util import *
 
-from demo_controller import player_controller # Check for neural net inspo
 from controller_bartek import controller_bartek
 from controller_pablo_francijn import controller_pablo_francijn
 from controller_jonas import controller_jonas
