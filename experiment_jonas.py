@@ -92,9 +92,7 @@ if __name__ == '__main__':
                             visuals=False) for enemy in ENEMIES]
     save_path = os.path.join(EXP_NAME, 'best_individuals.npy')
 
-    # Train the controller
     if '--train' in sys.argv:
-
         best_individuals = []
         for env in envs:
             population, stats, hof = run_evolution(env)
