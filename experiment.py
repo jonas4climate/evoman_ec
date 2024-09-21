@@ -34,5 +34,6 @@ for enemy in chosen_enemies:
                   player_controller=chosen_controller,
                   visuals=False))
 
-eval_controller(envs, n_games, experiment_name)
-watch_controller_play(envs) # Watch the controller play one game for each enemy
+for env in envs:
+    # How to play the game once
+    fitness, player_life, enemy_life, game_run_time = env.play()
