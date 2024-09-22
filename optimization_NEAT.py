@@ -5,6 +5,7 @@ import visualize
 import numpy as np
 
 from evoman.environment import Environment
+from controller_pablo_francijn import controller_pablo_francijn
 
 dom_u = 1
 dom_l = -1
@@ -18,21 +19,19 @@ env = Environment(experiment_name=experiment_name,
                   enemies=enemy_list,
                   multiplemode="yes",
                   playermode="ai",
+                  player_controller=controller_pablo_francijn(),
                   enemymode="static",
                   level=2,
-                  speed="normal",
+                  speed="fastest",
                   visuals=False
                   )
 
 def eval_genomes(genomes, config):
-
     for genome_id, genome in genomes:
+        # create a NN based on the genome provided
         net = neat.nn.FeedForwardNetwork.create(genome, config)
         fitness = 0
-
-        inputs = env.player.sensors.get(env)  # Get inputs from the environment
-        action = net.activate(inputs)      # Get action (or prediction) from the network
-        fitness += evaluate_individual(action, env) # Calculate fitness based on action's success
+        fitness += evaluate_individual(net, env) # Calculate fitness based on network's success
         
         genome.fitness = fitness  # Assign fitness to genome
 
@@ -59,8 +58,8 @@ def run(config_file):
     # Checkpoint saving every 10 generations
     p.add_reporter(neat.Checkpointer(generation_interval=10, time_interval_seconds=None))
 
-    # Run the evolution for up to 50 generations
-    winner = p.run(eval_genomes, 50)
+    # Run the evolution for up to 30 generations
+    winner = p.run(eval_genomes, 30)
 
     # Display the winning genome.
     print('\nBest genome:\n{!s}'.format(winner))
