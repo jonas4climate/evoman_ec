@@ -3,16 +3,16 @@ import os
 import neat
 import visualize
 import numpy as np
+import pickle
 
 from evoman.environment import Environment
 from controller_pablo_francijn import controller_pablo_francijn
 
-dom_u = 1
-dom_l = -1
-npop = 100
 experiment_name = "NEAT"
-enemy_list = range(1, 9)
+enemy_list = [1, 5, 6]
 
+# choose either train or test; test will give visualisations for the best found genome
+mode = 'train'
 
 # initializes simulation in multi evolution mode, for multiple static enemies.
 env = Environment(experiment_name=experiment_name,
@@ -30,16 +30,15 @@ def eval_genomes(genomes, config):
     for genome_id, genome in genomes:
         # create a NN based on the genome provided
         net = neat.nn.FeedForwardNetwork.create(genome, config)
-        fitness = 0
-        fitness += evaluate_individual(net, env) # Calculate fitness based on network's success
-        
+        fitness = evaluate_individual(net, env) # Calculate fitness based on network's success
         genome.fitness = fitness  # Assign fitness to genome
 
 
-def evaluate_individual(action, env):
-    _, player_life, enemy_life, time = env.play(pcont=action)
-    fitness = 0.75 * (100 - enemy_life) + 0.25 * player_life - np.log(time)
-    return fitness
+def evaluate_individual(network, env):
+    fitness, player_life, enemy_life, time = env.play(pcont=network)
+    # adjusting the built-in fitness function 
+    fitness_custom = 0.60 * (100 - enemy_life) + 0.4 * player_life - np.log(time)
+    return fitness_custom
 
 def run(config_file):
     # Load configuration.
@@ -60,20 +59,41 @@ def run(config_file):
 
     # Run the evolution for up to 30 generations
     winner = p.run(eval_genomes, 30)
+    # Save the winner to a text file
+
+    with open('winner.pkl', 'wb') as f:
+        pickle.dump(winner, f)
 
     # Display the winning genome.
     print('\nBest genome:\n{!s}'.format(winner))
 
 
 if __name__ == '__main__':
-    # Determine path to configuration file. This path manipulation is
-    # here so that the script will run successfully regardless of the
-    # current working directory.
-    #config_path = r"C:\Users\franc\Documents\GitHub\evoman_ec\config-feedforward"
-    #print(os.path.isfile(config_path))  # Should return True if the file exists
+    # Determine path to configuration file. 
     local_dir = os.path.dirname(__file__)
     config_path = r"C:\Users\franc\Documents\GitHub\evoman_ec\config-feedforward.ini"
-    run(config_path)
+
+    # do different things depending on the mode
+    if mode == 'train':
+        run(config_path)
+    elif mode == 'test':
+        # Load configuration.
+        config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
+                         neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                         config_path)
+        
+        # Load winner genome
+        with open('winner.pkl', 'rb') as f:
+            winner = pickle.load(f)
+
+        env.update_parameter('visuals', True)
+        env.update_parameter('speed', "normal")
+        net = neat.nn.FeedForwardNetwork.create(winner, config)
+        env.play(pcont=net) # play the game using the best network
+
+        
+
+
 
 
     
