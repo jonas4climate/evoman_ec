@@ -2,14 +2,15 @@ import random
 import numpy as np
 import os
 import sys
+import pandas as pd
 from deap import base, creator, tools, algorithms, cma
 from evoman.environment import Environment
 from experiment_util import *
 from controller_jonas import controller_jonas
 
 # Experiment parameters
-EXP_NAME = 'experiment_jonas_data'
-ENEMIES = [1, 2, 3]  # pick 3
+EXP_NAME = 'data/experiment_jonas'
+ENEMIES = [1, 2, 3, 4, 5, 6]  # pick 3
 
 # Controller parameters
 NUM_HIDDEN = 20
@@ -18,9 +19,9 @@ NUM_OUTPUTS = 5
 # Evolutionary algorithm parameters
 POPULATION_SIZE = 50
 LAMBDA = 50
-HOF_SIZE = 3
-NGEN = 50
-SIGMA = 100
+HOF_SIZE = 5
+NGEN = 25
+SIGMA = 1
 TOURNAMENT_SIZE = 5
 MUTATE_MU = 0
 MUTATE_SIGMA = 0.1
@@ -74,8 +75,16 @@ def run_evolution(env):
     stats.register("std", np.std)
     stats.register("min", np.min)
     stats.register("max", np.max)
+    stats.register("sigma", lambda _: strategy.sigma)
 
+    # Evolutionary base loop
     algorithms.eaGenerateUpdate(toolbox, ngen=NGEN, stats=stats, halloffame=hof, verbose=True)
+
+    game_folder = os.path.join(EXP_NAME, str(env.enemies[0]))
+    os.makedirs(game_folder, exist_ok=True)
+
+    # Save best individual
+    np.save(os.path.join(game_folder, 'best_individual.npy'), hof[0])
 
     return population, stats, hof
 
@@ -98,12 +107,10 @@ if __name__ == '__main__':
             population, stats, hof = run_evolution(env)
             best_individuals.append(hof[0])
 
-    if '--save' in sys.argv:
-        np.save(save_path, best_individuals)
-
     if '--watch' in sys.argv:
-        best_individuals = np.load(save_path, allow_pickle=True)
         for env in envs:
-            env.player_controller.set_weights(best_individuals[0], NUM_HIDDEN)
+            file = os.path.join(EXP_NAME, str(env.enemies[0]), 'best_individual.npy')
+            best_individual = np.load(file, allow_pickle=True)
+            env.player_controller.set_weights(best_individual, NUM_HIDDEN)
             print('Game started, go watch!')
             watch_controller_play([env], n_games=1, speed="normal")
