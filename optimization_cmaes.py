@@ -2,6 +2,7 @@ import random
 import numpy as np
 import os
 import sys
+import pandas as pd
 
 from deap import base, creator, tools, algorithms, cma
 from evoman.environment import Environment
@@ -15,6 +16,10 @@ DATA_FOLDER = os.path.join('data', EXP_NAME)
 # Experiment parameters
 ENEMIES = [1, 2, 3, 4, 5, 6, 7, 8]  # pick 3
 ENEMY_MODE = 'static'
+
+# Fitness function
+FITNESS_GAMMA = 0.75
+FITNESS_ALPHA = 0.25
 
 # Controller parameters
 NUM_HIDDEN = 20
@@ -34,16 +39,13 @@ MATE_INDPB = 0.2
 
 os.makedirs(DATA_FOLDER, exist_ok=True)
 
-def evaluate_fitness(individual, env):
-    env.player_controller.set_weights(individual, NUM_HIDDEN)
-    fitness, _, _, _ = env.play()
-    return fitness,
-
-def evaluate_fitness_custom(individual, env):
+def evaluate_fitness(individual, env, gamma=0.9, alpha=0.1):
     env.player_controller.set_weights(individual, NUM_HIDDEN)
     _, player_life, enemy_life, game_run_time = env.play()
-    custom_fitness = 0.75 * (100 - enemy_life) + 0.25 * player_life - np.log(game_run_time)
+    custom_fitness = gamma * (100 - enemy_life) + alpha * player_life - np.log(game_run_time)
     return custom_fitness,
+
+eval_fitness = lambda ind, env: evaluate_fitness(ind, env, gamma=FITNESS_GAMMA, alpha=FITNESS_ALPHA)
 
 creator.create("FitnessMax", base.Fitness, weights=(1.0,))
 creator.create("Individual", np.ndarray, fitness=creator.FitnessMax)
@@ -61,7 +63,7 @@ def run_evolution(env):
     toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.attr_float, n=n)
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
-    toolbox.register("evaluate", evaluate_fitness_custom, env=env)
+    toolbox.register("evaluate", eval_fitness, env=env)
     toolbox.register("mate", tools.cxUniform, indpb=MATE_INDPB)
     toolbox.register("mutate", tools.mutGaussian, mu=MUTATE_MU, sigma=MUTATE_SIGMA, indpb=MUTATE_INDPB)
     toolbox.register("select", tools.selTournament, tournsize=TOURNAMENT_SIZE)
