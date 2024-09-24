@@ -1,6 +1,6 @@
 .DS_Store
 .idea
-data/
+*neat-checkpoint-*
 
 __pycache__/
 *.py[cod]

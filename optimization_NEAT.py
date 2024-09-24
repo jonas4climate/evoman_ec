@@ -1,4 +1,5 @@
 import os
+import sys
 
 import neat
 import pandas as pd
@@ -8,23 +9,27 @@ import pickle
 from evoman.environment import Environment
 from controller_pablo_francijn import controller_pablo_francijn
 
-
 generation = 0
-experiment_name = "NEAT"
+EXP_NAME = 'neat'
+DATA_FOLDER = os.path.join('data', EXP_NAME)
+ENEMY_MODE = 'static'
+ENEMIES = [1, 2, 3, 4, 5, 6, 7, 8]
 
-for enemy in range(1, 9):
+GEN_INTERVAL_LOG = 10
+NGEN = 2 # Make larger in practice
+
+os.makedirs(DATA_FOLDER, exist_ok=True)
+
+for enemy in ENEMIES:
 
     data = []
 
-    # choose either train or test; test will give visualisations for the best found genome
-    mode = 'train'
-
-    # initializes simulation in multi evolution mode, for multiple static enemies.
-    env = Environment(experiment_name=experiment_name,
+    env = Environment(experiment_name=EXP_NAME,
                     enemies=[enemy],
                     multiplemode="no",
                     playermode="ai",
                     player_controller=controller_pablo_francijn(),
+                    savelogs="no",
                     enemymode="static",
                     level=2,
                     speed="fastest",
@@ -74,14 +79,14 @@ for enemy in range(1, 9):
         stats = neat.StatisticsReporter()
         p.add_reporter(stats)
     
-        # Checkpoint saving every 10 generations
-        p.add_reporter(neat.Checkpointer(generation_interval=10, time_interval_seconds=None))
+        p.add_reporter(neat.Checkpointer(generation_interval=GEN_INTERVAL_LOG, time_interval_seconds=None, filename_prefix=os.path.join(DATA_FOLDER, 'neat-checkpoint-')))
 
-        # Run the evolution for up to 100 generations
-        winner = p.run(eval_genomes, 100)
-        # Save the winner to a text file
+        winner = p.run(eval_genomes, NGEN)
 
-        with open(f'winner_{enemy}.pkl', 'wb') as f:
+        game_folder = os.path.join(DATA_FOLDER, str(enemy))
+        os.makedirs(game_folder, exist_ok=True)
+
+        with open(os.path.join(game_folder, f'best_individual_{ENEMY_MODE}.pkl'), 'wb') as f:
             pickle.dump(winner, f)
 
         # Display the winning genome.
@@ -91,33 +96,27 @@ for enemy in range(1, 9):
     if __name__ == '__main__':
         # Determine path to configuration file. 
         local_dir = os.path.dirname(__file__)
-        config_path = r"C:\Users\franc\Documents\GitHub\evoman_ec\config-feedforward.ini"
+        config_path = os.path.join(local_dir, 'neat-config-feedforward.ini')
 
         # do different things depending on the mode
-        if mode == 'train':
+        if '--train' in sys.argv:
             run(config_path)
             df = pd.DataFrame(data)
             df.columns = ['generation', 'max', 'mean', 'std', 'fitnesses_individuals']
-            df.to_numpy()
-            np.save(f'data_{enemy}', df)
-        elif mode == 'test':
+            game_folder = os.path.join(DATA_FOLDER, str(enemy))
+            df.to_csv(os.path.join(game_folder, f'stats_{ENEMY_MODE}.csv'), index=False)
+
+        if '--watch' in sys.argv:
             # Load configuration.
             config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                             neat.DefaultSpeciesSet, neat.DefaultStagnation,
                             config_path)
             
             # Load winner genome
-            with open(f'winner_{enemy}.pkl', 'rb') as f:
+            with open(os.path.join(DATA_FOLDER, str(enemy), f'best_individual_{ENEMY_MODE}.pkl'), 'rb') as f:
                 winner = pickle.load(f)
 
             env.update_parameter('visuals', True)
             env.update_parameter('speed', "normal")
             net = neat.nn.FeedForwardNetwork.create(winner, config)
             env.play(pcont=net) # play the game using the best network
-
-  
-
-
-
-
-    
