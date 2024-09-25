@@ -15,7 +15,7 @@ EXP_NAME = 'cmaes'
 DATA_FOLDER = os.path.join('data', EXP_NAME)
 
 # Experiment parameters
-ENEMIES = [1, 2, 3, 4, 5, 6, 7, 8]  # TODO: make larger pick 3
+ENEMIES = [1, 3, 4]  # TODO: make larger pick 3
 ENEMY_MODE = 'static'
 
 # Custom fitness parameters
@@ -30,7 +30,7 @@ NUM_OUTPUTS = 5
 POPULATION_SIZE = 100
 LAMBDA = 100
 HOF_SIZE = 5
-NGEN = 10 # TODO: Make larger in practice
+NGEN = 50 # TODO: Make larger in practice
 SIGMA = 10
 TOURNAMENT_SIZE = 5
 MUTATE_MU = 0
