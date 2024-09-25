@@ -13,10 +13,10 @@ generation = 0
 EXP_NAME = 'neat'
 DATA_FOLDER = os.path.join('data', EXP_NAME)
 ENEMY_MODE = 'static'
-ENEMIES = [1, 2, 3, 4, 5, 6, 7, 8]
+ENEMIES = [1] # TODO: make list larger
 
 GEN_INTERVAL_LOG = 10
-NGEN = 2 # Make larger in practice
+NGEN = 5 # TODO: make larger in practice
 
 os.makedirs(DATA_FOLDER, exist_ok=True)
 
