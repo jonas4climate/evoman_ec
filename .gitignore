@@ -7,7 +7,7 @@ __pycache__/
 *$py.class
 
 # Virtual environment
-.venv/
+.venv
 
 # Visual Studio Code
 .vscode/
