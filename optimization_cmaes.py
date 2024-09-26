@@ -23,14 +23,14 @@ FITNESS_GAMMA = 0.75
 FITNESS_ALPHA = 0.25
 
 # Controller parameters
-NUM_HIDDEN = 20
+NUM_HIDDEN = 10
 NUM_OUTPUTS = 5
 
 # Evolutionary algorithm parameters
 POPULATION_SIZE = 100
 LAMBDA = 100
 HOF_SIZE = 5
-NGEN = 50 # TODO: Make larger in practice
+NGEN = 100
 SIGMA = 10
 TOURNAMENT_SIZE = 5
 MUTATE_MU = 0
