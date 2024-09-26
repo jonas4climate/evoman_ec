@@ -13,38 +13,19 @@ from controller_pablo_francijn import controller_pablo_francijn
 EXP_NAME = 'neat'
 DATA_FOLDER = os.path.join('data', EXP_NAME)
 ENEMY_MODE = 'static'
-ENEMIES = [1, 2, 3, 4, 5, 6, 7, 8] # TODO: make list larger
+ENEMIES = [1, 3, 4] # TODO: make list larger
 
 # Custom fitness parameters
 FITNESS_GAMMA = 0.75
 FITNESS_ALPHA = 0.25
 
 GEN_INTERVAL_LOG = 10
-NGEN = 50 # TODO: make larger in practice
+NGEN = 100 # TODO: make larger in practice
 
 SEED = 42
 np.random.seed(SEED)
 
 os.makedirs(DATA_FOLDER, exist_ok=True)
-
-class FixedSizeReproduction(neat.DefaultReproduction):
-    """Provides a reproduction class that ensures the population size stays fixed."""
-    def reproduce(self, config, species, pop_size, generation):
-        # Call the default reproduce method
-        offspring = super().reproduce(config, species, pop_size, generation)
-        
-        # Ensure population size stays fixed by truncating or adding genomes as needed
-        if len(offspring) > pop_size:
-            # Truncate the offspring to the desired population size
-            offspring = dict(list(offspring.items())[:pop_size])
-        elif len(offspring) < pop_size:
-            # Add random genomes to meet the population size requirement
-            while len(offspring) < pop_size:
-                new_id = max(offspring.keys()) + 1
-                # Create a random new genome to fill the population
-                offspring[new_id] = neat.DefaultGenome(new_id)
-        
-        return offspring
     
 pbar2 = tqdm.tqdm(total=len(ENEMIES), desc='Training on games', unit='game', position=0)
 
@@ -78,13 +59,14 @@ for enemy in ENEMIES:
             fitnesses.append(genome.fitness)
             n_nodes.append(num_nodes)
 
-        n_nodes_data[run, generation, :len(n_nodes)] = n_nodes
+        n_nodes_data[run, generation, :len(n_nodes)] = [np.mean(n_nodes[i]) for i in range(len(n_nodes))]
         fitnesses_data[run, generation, :len(fitnesses)] = fitnesses
+        mean_number_nodes = np.mean(n_nodes)
         max_fitness = max(fitnesses)
         mean_fitness = np.mean(fitnesses)
         std_fitness = np.std(fitnesses)
 
-        row_data = [generation, max_fitness, mean_fitness, std_fitness]
+        row_data = [generation, max_fitness, mean_fitness, std_fitness, mean_number_nodes]
         stats_data.append(row_data)
         generation += 1
         pbar.update(1)
@@ -122,9 +104,9 @@ for enemy in ENEMIES:
             p = neat.Population(config)
 
             # Add a stdout reporter to show progress in the terminal.
-            # p.add_reporter(neat.StdOutReporter(True))
             stats = neat.StatisticsReporter()
             p.add_reporter(stats)
+            # p.add_reporter(neat.StdOutReporter(True))
             # p.add_reporter(neat.Checkpointer(generation_interval=GEN_INTERVAL_LOG, time_interval_seconds=None, filename_prefix=os.path.join(DATA_FOLDER, 'neat-checkpoint-')))
 
             winner = p.run(lambda genomes, config: eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data, pbar), NGEN)
@@ -135,7 +117,7 @@ for enemy in ENEMIES:
                 pickle.dump(winner, f)
                 
             df_stats = pd.DataFrame(stats_data)
-            df_stats.columns = ['generation', 'max', 'mean', 'std']
+            df_stats.columns = ['generation', 'max', 'mean', 'std', 'mean no. nodes']
             df_stats.to_csv(os.path.join(game_folder, f'stats_run{run}_{ENEMY_MODE}.csv'), index=False)
 
         np.save(os.path.join(game_folder, f'all_fitnesses_{ENEMY_MODE}.npy'), fitnesses_data)

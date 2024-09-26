@@ -26,6 +26,9 @@ class controller_jonas(Controller):
                                                      hidden_weights_size + hidden_bias_size + output_weights_size]).reshape((self.n_hidden, self.n_outputs))
         self.output_layer_bias = np.array(weights[-output_bias_size:])
 
+    def sigmoid(self, x):
+        return 1 / (1 + np.exp(-x))
+
     def control(self, inputs, controller):
         assert self.weights is not None, "Weights have not been set."
 
