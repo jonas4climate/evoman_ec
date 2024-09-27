@@ -15,7 +15,7 @@ EXP_NAME = 'cmaes'
 DATA_FOLDER = os.path.join('data', EXP_NAME)
 
 # Experiment parameters
-ENEMIES = [1,3,4]  # TODO: make larger pick 3
+ENEMIES = [1]  # TODO: make larger pick 3
 ENEMY_MODE = 'static'
 
 # Custom fitness parameters
@@ -27,16 +27,11 @@ NUM_HIDDEN = 10
 NUM_OUTPUTS = 5
 
 # Evolutionary algorithm parameters
-POPULATION_SIZE = 50
-LAMBDA = 50
-HOF_SIZE = 5
+POPULATION_SIZE = 100
+LAMBDA = 100
+HOF_SIZE = 1
 NGEN = 100
 SIGMA = 10
-TOURNAMENT_SIZE = 5
-MUTATE_MU = 0
-MUTATE_SIGMA = 0.1
-MUTATE_INDPB = 0.2
-MATE_INDPB = 0.2
 
 SEED = 42
 np.random.seed(SEED)
@@ -61,6 +56,7 @@ creator.create("Individual", np.ndarray, fitness=creator.FitnessMax) # type: ign
 def run_evolutions(env, n_runs=1):
     pbar = tqdm.tqdm(total=n_runs*NGEN, desc=f'Training specialist against enemy {env.enemies[0]}', unit='gen', position=1)
     all_fitnesses = np.zeros((n_runs, NGEN, POPULATION_SIZE))
+    all_decisions = np.zeros((n_runs, NGEN, 2, 5)) # mean and std for each decision at each generation & run
     for run in range(n_runs):
         toolbox = base.Toolbox()  # Reset the toolbox to not contaminate runs
 
@@ -70,15 +66,10 @@ def run_evolutions(env, n_runs=1):
         toolbox.register("attr_float", random.uniform, -1.0, 1.0)
         toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.attr_float, n=n) # type: ignore
         toolbox.register("population", tools.initRepeat, list, toolbox.individual) # type: ignore
-
         toolbox.register("evaluate", eval_fitness, env=env)
-        toolbox.register("mate", tools.cxUniform, indpb=MATE_INDPB)
-        toolbox.register("mutate", tools.mutGaussian, mu=MUTATE_MU, sigma=MUTATE_SIGMA, indpb=MUTATE_INDPB)
-        toolbox.register("select", tools.selTournament, tournsize=TOURNAMENT_SIZE)
 
         # CMA-ES
         centroid = np.zeros(n)
-        # centroid = np.random.randn(n) * 0.1
         strategy = cma.Strategy(centroid=centroid, sigma=SIGMA, lambda_=LAMBDA)
         toolbox.register("generate", strategy.generate, creator.Individual) # type: ignore
         toolbox.register("update", strategy.update)
@@ -98,17 +89,23 @@ def run_evolutions(env, n_runs=1):
 
         # Hidden base loop
         # final_pop, logbook = algorithms.eaGenerateUpdate(toolbox, ngen=NGEN, stats=stats, halloffame=hof, verbose=True)
-        
+
         # Exposed loop
         for gen in range(NGEN):
             population = toolbox.generate()
             fitnesses = list(map(toolbox.evaluate, population))
             for ind, fit in zip(population, fitnesses):
                 ind.fitness.values = fit
+
             toolbox.update(population)
             hof.update(population)
 
             # Data collection
+            decision_history = np.array(env.player_controller.decision_history)
+            dec_mean, dec_std = np.mean(decision_history, axis=0), np.std(decision_history, axis=0)
+            all_decisions[run, gen] = [dec_mean, dec_std]
+            env.player_controller.reset_history()
+
             record = stats.compile(population)
             logbook.record(gen=gen, nevals=len(population), **record)
             all_fitnesses[run, gen] = [ind.fitness.values[0] for ind in population]
@@ -122,6 +119,7 @@ def run_evolutions(env, n_runs=1):
         df_stats = pd.DataFrame(logbook)
         df_stats.to_csv(os.path.join(game_folder, f'stats_run{run}_{ENEMY_MODE}.csv'), index=False)
     
+    np.save(os.path.join(game_folder, f'all_decisions_{ENEMY_MODE}.npy'), all_decisions)
     np.save(os.path.join(game_folder, f'all_fitnesses_{ENEMY_MODE}.npy'), all_fitnesses)
     pbar.close()
     return

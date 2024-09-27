@@ -4,6 +4,7 @@ from evoman.controller import Controller
 class controller_jonas(Controller):
     def __init__(self):
         self.weights = None
+        self.decision_history = []
 
     def set_weights(self, weights, n_hidden):
         self.weights = weights
@@ -28,6 +29,9 @@ class controller_jonas(Controller):
 
     def sigmoid(self, x):
         return 1 / (1 + np.exp(-x))
+    
+    def reset_history(self):
+        self.decision_history = []
 
     def control(self, inputs, controller):
         assert self.weights is not None, "Weights have not been set."
@@ -48,4 +52,7 @@ class controller_jonas(Controller):
         shoot = 1 if output[3] > 0 else 0
         release = 1 if output[4] > 0 else 0
 
-        return [left, right, jump, shoot, release]
+        decision = [left, right, jump, shoot, release]
+        self.decision_history.append(decision)
+
+        return decision
