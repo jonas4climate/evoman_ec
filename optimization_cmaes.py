@@ -15,7 +15,7 @@ EXP_NAME = 'cmaes'
 DATA_FOLDER = os.path.join('data', EXP_NAME)
 
 # Experiment parameters
-ENEMIES = [1, 3, 4]  # TODO: make larger pick 3
+ENEMIES = [1,3,4]  # TODO: make larger pick 3
 ENEMY_MODE = 'static'
 
 # Custom fitness parameters
@@ -27,8 +27,8 @@ NUM_HIDDEN = 10
 NUM_OUTPUTS = 5
 
 # Evolutionary algorithm parameters
-POPULATION_SIZE = 100
-LAMBDA = 100
+POPULATION_SIZE = 50
+LAMBDA = 50
 HOF_SIZE = 5
 NGEN = 100
 SIGMA = 10
