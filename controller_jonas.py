@@ -53,6 +53,6 @@ class controller_jonas(Controller):
         release = 1 if output[4] > 0 else 0
 
         decision = [left, right, jump, shoot, release]
-        self.decision_history.append(decision)
+        self.decision_history.append(decision + [left or right] + [jump or release])
 
         return decision
