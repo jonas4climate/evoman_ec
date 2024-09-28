@@ -83,7 +83,7 @@ for (i, enemy) in enumerate(ENEMIES):
     def evaluate_individual(id, network, env):
         _, player_life, enemy_life, time = env.play(pcont=network)
         # adjusting the built-in fitness function 
-        fitness_custom = FITNESS_ALPHA * (100 - enemy_life) + FITNESS_GAMMA * player_life - np.log(time)
+        fitness_custom = FITNESS_GAMMA * (100 - enemy_life) + FITNESS_ALPHA * player_life - np.log(time)
         return fitness_custom
 
     def run_evolutions(n_runs=1):
