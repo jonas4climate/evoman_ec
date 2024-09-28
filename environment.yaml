@@ -1,4 +1,4 @@
-name: evoman-2
+name: evoman-comp
 channels:
   - defaults
   - conda-forge

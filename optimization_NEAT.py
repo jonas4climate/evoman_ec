@@ -30,7 +30,7 @@ os.makedirs(DATA_FOLDER, exist_ok=True)
     
 pbar_games = tqdm.tqdm(total=len(ENEMIES), desc='Training on games', unit='game', position=0)
 
-for enemy in ENEMIES:
+for (i, enemy) in enumerate(ENEMIES):
 
     generation = 0
 
@@ -139,16 +139,40 @@ for enemy in ENEMIES:
 
 
     if __name__ == '__main__':
+
+        n_runs = 1
+        if '--runs' in sys.argv:
+            n_runs = int(sys.argv[sys.argv.index('--runs') + 1])
+
+        n_repeats = 5
+        if '--repeats' in sys.argv:
+            n_repeats = int(sys.argv[sys.argv.index('--repeats') + 1])
+
         # do different things depending on the mode
         if '--train' in sys.argv:
-            runs = 1
-            if '--runs' in sys.argv:
-                runs = int(sys.argv[sys.argv.index('--runs') + 1])
-            run_evolutions(runs)
+            run_evolutions(n_runs)
             pbar_games.update(1)
 
+        if '--test' in sys.argv:
+            gains = np.zeros(n_repeats * n_runs)
+
+            config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
+                            neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                            CONFIG_PATH)
+
+            for j in range(n_runs):
+                with open(os.path.join(DATA_FOLDER, f"{enemy}/best_individual_run{j}_static.pkl"), 'rb') as f:
+                    optimal_weights = pickle.load(f)
+
+                for k in range(n_repeats):
+                    net = neat.nn.FeedForwardNetwork.create(optimal_weights, config)
+                    _, pl, el, _ = env.play(pcont=net)
+                    # Gain = player life - enemy life
+                    gains[j*n_repeats + k] = pl - el
+
+            np.save(os.path.join(DATA_FOLDER, f'{enemy}', 'gains.npy'), gains)
+
         if '--watch' in sys.argv:
-            # Load configuration.
             config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                             neat.DefaultSpeciesSet, neat.DefaultStagnation,
                             CONFIG_PATH)

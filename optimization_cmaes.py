@@ -135,15 +135,37 @@ if __name__ == '__main__':
                             clockprec="low",
                             player_controller=controller_jonas(),
                             visuals=False) for enemy in ENEMIES]
+    
+    n_runs = 1
+    if '--runs' in sys.argv:
+        n_runs = int(sys.argv[sys.argv.index('--runs') + 1])
+
+    n_repeats = 5
+    if '--repeats' in sys.argv:
+        n_repeats = int(sys.argv[sys.argv.index('--repeats') + 1])
 
     if '--train' in sys.argv:
-        runs = 1
-        if '--runs' in sys.argv:
-            runs = int(sys.argv[sys.argv.index('--runs') + 1])
         pbar_games = tqdm.tqdm(total=len(envs), desc='Training on games', unit='game', position=0)
         for env in envs:
-            run_evolutions(env, runs)
+            run_evolutions(env, n_runs)
             pbar_games.update(1)
+
+    if '--test' in sys.argv:
+        for (i, env) in tqdm.tqdm(enumerate(envs), total=len(envs), desc='Testing on games', unit='game', position=0):
+            gains = np.zeros(n_repeats * n_runs)
+
+            for j in range(n_runs):
+                with open(os.path.join(DATA_FOLDER, f"{env.enemies[0]}/best_individual_run{j}_static.npy"), 'rb') as f:
+                    optimal_weights = np.load(f)
+                env.player_controller.set_weights(optimal_weights, NUM_HIDDEN)
+
+                for k in range(n_repeats):
+                    _, pl, el, _ = env.play()
+                    # Gain = player life - enemy life
+                    gains[j*n_repeats + k] = pl - el
+
+            # Save the gains
+            np.save(os.path.join(DATA_FOLDER, f'{env.enemies[0]}', 'gains.npy'), gains)
 
     if '--watch' in sys.argv:
         for env in envs:
