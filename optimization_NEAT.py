@@ -8,11 +8,12 @@ import pickle
 import tqdm
 
 from evoman.environment import Environment
-from controller_pablo_francijn import controller_pablo_francijn
+from EC.evoman_ec.controller_neat import controller_neat
 
 EXP_NAME = 'neat'
 DATA_FOLDER = os.path.join('data', EXP_NAME)
 ENEMY_MODE = 'static'
+CONFIG_PATH = os.path.join('neat-config-feedforward.ini')
 ENEMIES = [1, 3, 4] # TODO: make list larger
 
 # Custom fitness parameters
@@ -27,7 +28,7 @@ np.random.seed(SEED)
 
 os.makedirs(DATA_FOLDER, exist_ok=True)
     
-pbar2 = tqdm.tqdm(total=len(ENEMIES), desc='Training on games', unit='game', position=0)
+pbar_games = tqdm.tqdm(total=len(ENEMIES), desc='Training on games', unit='game', position=0)
 
 for enemy in ENEMIES:
 
@@ -37,7 +38,7 @@ for enemy in ENEMIES:
                     enemies=[enemy],
                     multiplemode="no",
                     playermode="ai",
-                    player_controller=controller_pablo_francijn(),
+                    player_controller=controller_neat(),
                     savelogs="no",
                     enemymode="static",
                     level=2,
@@ -45,7 +46,7 @@ for enemy in ENEMIES:
                     visuals=False
                     )
 
-    def eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data, pbar):
+    def eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data, pbar_gens):
         global generation
         
         fitnesses = []
@@ -69,7 +70,7 @@ for enemy in ENEMIES:
         row_data = [generation, max_fitness, mean_fitness, std_fitness, mean_number_nodes]
         stats_data.append(row_data)
         generation += 1
-        pbar.update(1)
+        pbar_gens.update(1)
 
     def evaluate_individual(id, network, env):
         _, player_life, enemy_life, time = env.play(pcont=network)
@@ -77,17 +78,17 @@ for enemy in ENEMIES:
         fitness_custom = FITNESS_ALPHA * (100 - enemy_life) + FITNESS_GAMMA * player_life - np.log(time)
         return fitness_custom
 
-    def run_evolutions(config_file, n_runs=1):
+    def run_evolutions(n_runs=1):
         # Find out pop size
         config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                             neat.DefaultSpeciesSet, neat.DefaultStagnation,
-                            config_file)
+                            CONFIG_PATH)
         pop_size = int(config.pop_size * 1.1) # 10% margin for growth
         fitnesses_data = np.full((n_runs, NGEN, pop_size), np.nan)
         n_nodes_data = np.full((n_runs, NGEN, pop_size), np.nan)
 
         game_folder = os.path.join(DATA_FOLDER, str(enemy))
-        pbar = tqdm.tqdm(total=n_runs*NGEN, desc=f'Training specialist against enemy {enemy}', unit='gen', position=1)
+        pbar_gens = tqdm.tqdm(total=n_runs*NGEN, desc=f'Training specialist against enemy {enemy}', unit='gen', position=1)
 
         for run in range(n_runs):
             global generation
@@ -98,7 +99,7 @@ for enemy in ENEMIES:
             # Load configuration.
             config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                                 neat.DefaultSpeciesSet, neat.DefaultStagnation,
-                                config_file)
+                                CONFIG_PATH)
             
             # Create the population, which is the top-level object for a NEAT run.
             p = neat.Population(config)
@@ -109,7 +110,7 @@ for enemy in ENEMIES:
             # p.add_reporter(neat.StdOutReporter(True))
             # p.add_reporter(neat.Checkpointer(generation_interval=GEN_INTERVAL_LOG, time_interval_seconds=None, filename_prefix=os.path.join(DATA_FOLDER, 'neat-checkpoint-')))
 
-            winner = p.run(lambda genomes, config: eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data, pbar), NGEN)
+            winner = p.run(lambda genomes, config: eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data, pbar_gens), NGEN)
 
             # Save data
             os.makedirs(game_folder, exist_ok=True)
@@ -125,23 +126,19 @@ for enemy in ENEMIES:
 
 
     if __name__ == '__main__':
-        # Determine path to configuration file. 
-        local_dir = os.path.dirname(__file__)
-        config_path = os.path.join(local_dir, 'neat-config-feedforward.ini')
-
         # do different things depending on the mode
         if '--train' in sys.argv:
             runs = 1
             if '--runs' in sys.argv:
                 runs = int(sys.argv[sys.argv.index('--runs') + 1])
-            run_evolutions(config_path, runs)
-            pbar2.update(1)
+            run_evolutions(runs)
+            pbar_games.update(1)
 
         if '--watch' in sys.argv:
             # Load configuration.
             config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                             neat.DefaultSpeciesSet, neat.DefaultStagnation,
-                            config_path)
+                            CONFIG_PATH)
             
             # Load winner genome
             with open(os.path.join(DATA_FOLDER, str(enemy), f'best_individual_{ENEMY_MODE}.pkl'), 'rb') as f:

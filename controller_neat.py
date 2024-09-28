@@ -1,7 +1,7 @@
 from evoman.environment import Environment
 from evoman.controller import Controller
 
-class controller_pablo_francijn(Controller):
+class controller_neat(Controller):
 	
     # only important method, add more for utility but this is the one called by the game
 	def control(self, inputs, controller):

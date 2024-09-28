@@ -6,7 +6,7 @@ import pickle
 from tqdm import tqdm
 from optimization_NEAT import ENEMIES, DATA_FOLDER
 from evoman.environment import Environment
-from controller_pablo_francijn import controller_pablo_francijn
+from EC.evoman_ec.controller_neat import controller_neat
 
 # Number of repeated games played per optimal individual in a run
 N_REPEATS = 5
@@ -18,7 +18,7 @@ N_RUNS = 10
 CONFIG_PATH = os.path.join('.', 'neat-config-feedforward.ini')
 CONFIG = neat.Config(neat.DefaultGenome, neat.DefaultReproduction, neat.DefaultSpeciesSet, neat.DefaultStagnation, CONFIG_PATH)
 
-env = Environment(experiment_name='data/neat', multiplemode="no", playermode="ai", player_controller=controller_pablo_francijn(),
+env = Environment(experiment_name='data/neat', multiplemode="no", playermode="ai", player_controller=controller_neat(),
                                 savelogs="no", logs='off', enemymode="static", level=2, speed="fastest", visuals=False)
 
 if __name__ == '__main__':
