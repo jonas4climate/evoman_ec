@@ -7,7 +7,6 @@ import tqdm
 
 from deap import base, creator, tools, algorithms, cma
 from evoman.environment import Environment
-from experiment_util import *
 from controller_jonas import controller_jonas
 
 # Folders
@@ -54,7 +53,7 @@ creator.create("Individual", np.ndarray, fitness=creator.FitnessMax) # type: ign
 
 
 def run_evolutions(env, n_runs=1):
-    pbar = tqdm.tqdm(total=n_runs*NGEN, desc=f'Training specialist against enemy {env.enemies[0]}', unit='gen', position=1)
+    pbar_gens = tqdm.tqdm(total=n_runs*NGEN, desc=f'Training specialist against enemy {env.enemies[0]}', unit='gen', position=1)
     all_fitnesses = np.zeros((n_runs, NGEN, POPULATION_SIZE))
     # decision format stored: [left, right, jump, shoot, release, left_or_right, jump_or_release]
     all_decisions = np.zeros((n_runs, NGEN, 2, 7)) # mean and std for each type of decision at each generation & run
@@ -111,7 +110,7 @@ def run_evolutions(env, n_runs=1):
             logbook.record(gen=gen, nevals=len(population), **record)
             all_fitnesses[run, gen] = [ind.fitness.values[0] for ind in population]
             # print(logbook.stream) # In the way of tqdm
-            pbar.update(1)
+            pbar_gens.update(1)
 
         # Save data
         game_folder = os.path.join(DATA_FOLDER, str(env.enemies[0]))
@@ -122,7 +121,7 @@ def run_evolutions(env, n_runs=1):
     
     np.save(os.path.join(game_folder, f'all_decisions_{ENEMY_MODE}.npy'), all_decisions)
     np.save(os.path.join(game_folder, f'all_fitnesses_{ENEMY_MODE}.npy'), all_fitnesses)
-    pbar.close()
+    pbar_gens.close()
     return
 
 if __name__ == '__main__':
@@ -141,10 +140,10 @@ if __name__ == '__main__':
         runs = 1
         if '--runs' in sys.argv:
             runs = int(sys.argv[sys.argv.index('--runs') + 1])
-        pbar = tqdm.tqdm(total=len(envs), desc='Training on games', unit='game', position=0)
+        pbar_games = tqdm.tqdm(total=len(envs), desc='Training on games', unit='game', position=0)
         for env in envs:
             run_evolutions(env, runs)
-            pbar.update(1)
+            pbar_games.update(1)
 
     if '--watch' in sys.argv:
         for env in envs:

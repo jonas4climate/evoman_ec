@@ -8,7 +8,7 @@ import pickle
 import tqdm
 
 from evoman.environment import Environment
-from EC.evoman_ec.controller_neat import controller_neat
+from controller_neat import controller_neat
 
 EXP_NAME = 'neat'
 DATA_FOLDER = os.path.join('data', EXP_NAME)
@@ -46,11 +46,12 @@ for enemy in ENEMIES:
                     visuals=False
                     )
 
-    def eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data, pbar_gens):
+    def eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data, all_decisions, n_weights_data, pbar_gens):
         global generation
         
         fitnesses = []
         n_nodes = []
+        n_weights = []
         for id, genome in genomes:
             # create a NN based on the genome provided
             net = neat.nn.FeedForwardNetwork.create(genome, config)
@@ -58,14 +59,21 @@ for enemy in ENEMIES:
             fitness = evaluate_individual(id, net, env) # Calculate fitness based on network's success
             genome.fitness = fitness  # Assign fitness to genome
             fitnesses.append(genome.fitness)
+            n_weights.append(len(genome.connections))
             n_nodes.append(num_nodes)
 
         n_nodes_data[run, generation, :len(n_nodes)] = [np.mean(n_nodes[i]) for i in range(len(n_nodes))]
+        n_weights_data[run, generation, :len(n_weights)] = [np.mean(n_weights[i]) for i in range(len(n_weights))]
         fitnesses_data[run, generation, :len(fitnesses)] = fitnesses
         mean_number_nodes = np.mean(n_nodes)
         max_fitness = max(fitnesses)
         mean_fitness = np.mean(fitnesses)
         std_fitness = np.std(fitnesses)
+
+        decision_history = np.array(env.player_controller.decision_history)
+        dec_mean, dec_std = np.mean(decision_history, axis=0), np.std(decision_history, axis=0)
+        all_decisions[run, generation] = [dec_mean, dec_std]
+        env.player_controller.reset_history()
 
         row_data = [generation, max_fitness, mean_fitness, std_fitness, mean_number_nodes]
         stats_data.append(row_data)
@@ -86,6 +94,9 @@ for enemy in ENEMIES:
         pop_size = int(config.pop_size * 1.1) # 10% margin for growth
         fitnesses_data = np.full((n_runs, NGEN, pop_size), np.nan)
         n_nodes_data = np.full((n_runs, NGEN, pop_size), np.nan)
+        n_weights_data = np.full((n_runs, NGEN, pop_size), np.nan)
+        # decision format stored: [left, right, jump, shoot, release, left_or_right, jump_or_release]
+        all_decisions = np.zeros((n_runs, NGEN, 2, 7)) # mean and std for each type of decision at each generation & run
 
         game_folder = os.path.join(DATA_FOLDER, str(enemy))
         pbar_gens = tqdm.tqdm(total=n_runs*NGEN, desc=f'Training specialist against enemy {enemy}', unit='gen', position=1)
@@ -110,7 +121,7 @@ for enemy in ENEMIES:
             # p.add_reporter(neat.StdOutReporter(True))
             # p.add_reporter(neat.Checkpointer(generation_interval=GEN_INTERVAL_LOG, time_interval_seconds=None, filename_prefix=os.path.join(DATA_FOLDER, 'neat-checkpoint-')))
 
-            winner = p.run(lambda genomes, config: eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data, pbar_gens), NGEN)
+            winner = p.run(lambda genomes, config: eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data, all_decisions, n_weights_data, pbar_gens), NGEN)
 
             # Save data
             os.makedirs(game_folder, exist_ok=True)
@@ -123,6 +134,8 @@ for enemy in ENEMIES:
 
         np.save(os.path.join(game_folder, f'all_fitnesses_{ENEMY_MODE}.npy'), fitnesses_data)
         np.save(os.path.join(game_folder, f'all_n_nodes_{ENEMY_MODE}.npy'), n_nodes_data)
+        np.save(os.path.join(game_folder, f'all_n_weights_{ENEMY_MODE}.npy'), n_weights_data)
+        np.save(os.path.join(game_folder, f'all_decisions_{ENEMY_MODE}.npy'), all_decisions)
 
 
     if __name__ == '__main__':
