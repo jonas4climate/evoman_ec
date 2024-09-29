@@ -7,7 +7,7 @@ import tqdm
 
 from deap import base, creator, tools, algorithms, cma
 from evoman.environment import Environment
-from controller_jonas import controller_jonas
+from controller_cmaes import controller_cmaes
 
 # Folders
 EXP_NAME = 'cmaes'
@@ -133,7 +133,7 @@ if __name__ == '__main__':
                             savelogs="no",
                             timeexpire=3000,
                             clockprec="low",
-                            player_controller=controller_jonas(),
+                            player_controller=controller_cmaes(),
                             visuals=False) for enemy in ENEMIES]
     
     n_runs = 1

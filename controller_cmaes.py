@@ -1,7 +1,7 @@
 import numpy as np
 from evoman.controller import Controller
 
-class controller_jonas(Controller):
+class controller_cmaes(Controller):
     def __init__(self):
         self.weights = None
         self.decision_history = []
