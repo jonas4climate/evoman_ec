@@ -34,3 +34,7 @@ python optimization_NEAT.py --watch --runs 10
 Feel free to change `--runs` to the number you would like to inspect.
 
 Now you may generate the comparative plots by executing the beforementioned [visualization notebook](./visualization.ipynb) line by line.
+
+### Report
+
+The report summarizing our findings can be found [here](./105.pdf).
