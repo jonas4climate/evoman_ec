@@ -169,10 +169,11 @@ if __name__ == '__main__':
 
     if '--watch' in sys.argv:
         for env in envs:
-            file = os.path.join(DATA_FOLDER, str(env.enemies[0]), f'best_individual_{ENEMY_MODE}.npy')
-            best_individual = np.load(file, allow_pickle=True)
-            env.player_controller.set_weights(best_individual, NUM_HIDDEN) # type: ignore
-            print(f'Game {env.enemies} started, go watch!')
-            env.visuals = True
-            env.speed = "normal"
-            env.play()
+            for run in range(n_runs):
+                file = os.path.join(DATA_FOLDER, str(env.enemies[0]), f'best_individual_run{run}_{ENEMY_MODE}.npy')
+                best_individual = np.load(file, allow_pickle=True)
+                env.player_controller.set_weights(best_individual, NUM_HIDDEN) # type: ignore
+                print(f'Game {env.enemies} started, go watch!')
+                env.visuals = True
+                env.speed = "normal"
+                env.play()

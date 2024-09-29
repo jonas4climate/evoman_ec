@@ -173,16 +173,17 @@ for (i, enemy) in enumerate(ENEMIES):
             np.save(os.path.join(DATA_FOLDER, f'{enemy}', 'gains.npy'), gains)
 
         if '--watch' in sys.argv:
-            config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
-                            neat.DefaultSpeciesSet, neat.DefaultStagnation,
-                            CONFIG_PATH)
-            
-            # Load winner genome
-            with open(os.path.join(DATA_FOLDER, str(enemy), f'best_individual_{ENEMY_MODE}.pkl'), 'rb') as f:
-                winner = pickle.load(f)
+            for run in range(n_runs):
+                config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
+                                neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                                CONFIG_PATH)
+                
+                # Load winner genome
+                with open(os.path.join(DATA_FOLDER, str(enemy), f'best_individual_run{run}_{ENEMY_MODE}.pkl'), 'rb') as f:
+                    winner = pickle.load(f)
 
-            env.update_parameter('visuals', True)
-            env.update_parameter('speed', "normal")
-            net = neat.nn.FeedForwardNetwork.create(winner, config)
-            env.play(pcont=net) # play the game using the best network
+                env.update_parameter('visuals', True)
+                env.update_parameter('speed', "normal")
+                net = neat.nn.FeedForwardNetwork.create(winner, config)
+                env.play(pcont=net) # play the game using the best network
     

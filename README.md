@@ -22,11 +22,15 @@ python optimization_cmaes.py --train --test --runs 10
 python optimization_NEAT.py --train --test --runs 10
 ```
 
-This will run our algorithms with hand-tuned parameter settings on our enemy selection. For changes to this principle, inspect the top of both files. You can afterwards also watch the best trained specialists play their respective games by running:
+This will run our algorithms with hand-tuned parameter settings on our enemy selection. For changes to this principle, inspect the top of both files. 
+
+You can afterwards also watch the best trained specialists play their respective games by running:
 
 ```sh
-python optimization_cmaes.py --watch
-python optimization_NEAT.py --watch
+python optimization_cmaes.py --watch --runs 10
+python optimization_NEAT.py --watch --runs 10
 ```
+
+Feel free to change `--runs` to the number you would like to inspect.
 
 Now you may generate the comparative plots by executing the beforementioned [visualization notebook](./visualization.ipynb) line by line.
