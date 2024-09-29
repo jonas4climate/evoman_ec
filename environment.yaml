@@ -8,8 +8,14 @@ dependencies:
   - numpy
   - matplotlib
   - pandas
+  - pygame
+  - scipy
+  - lapack # may be required for scipy
+  - openblas # may be required for scipy
   - ipywidgets
   - jupyter
   - tqdm
   - deap
-  - neat-python
+  - pip
+  - pip:
+      - neat-python

@@ -8,7 +8,7 @@ To set up the environment, we are using [conda](https://anaconda.org/anaconda/co
 
 ```sh
 git clone https://github.com/jonas4climate/evoman_ec
-conda env -f environment.yaml
+conda env create -f environment.yaml
 conda activate evoman-comp
 ```
 
