@@ -156,8 +156,8 @@ if __name__ == '__main__':
         def hyerparam_trial_run(trial):
             # "Sample" hyperparameters
             global LAMBDA, POPULATION_SIZE, N_GEN, SIGMA
-            LAMBDA = SIGMA = trial.suggest_float('sigma', 0.1, 10.0)
-            POPULATION_SIZE = trial.suggest_int('neurons', 10, 1000)
+            SIGMA = trial.suggest_float('sigma', 0.1, 10.0)
+            LAMBDA = POPULATION_SIZE = trial.suggest_int('pop_size', 10, 1000)
             N_GEN = trial.suggest_int('n_gen', 10, 1000)
 
             # Run evolutions
@@ -177,10 +177,13 @@ if __name__ == '__main__':
         study = optuna.create_study(direction='maximize', sampler=sampler)
         study.optimize(hyerparam_trial_run, n_trials=tuning_n_trials)
         
-        # Save results
         df = study.trials_dataframe()
         df.to_csv(os.path.join(DATA_FOLDER, 'tuning_results.csv'), index=False)
 
+        best_params = study.best_params
+        SIGMA = best_params['sigma']
+        LAMBDA = POPULATION_SIZE = best_params['pop_size']
+        N_GEN = best_params['n_gen']
 
     if '--train' in sys.argv:
         pbar_games = tqdm.tqdm(total=len(envs), desc='Training on games', unit='game', position=0)
