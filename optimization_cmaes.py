@@ -4,8 +4,11 @@ import os
 import sys
 import pandas as pd
 import tqdm
+
 import optuna
+from optuna.samplers import TPESampler
 from deap import base, creator, tools, algorithms, cma
+
 from evoman.environment import Environment
 from controller_cmaes import controller_cmaes
 
@@ -156,17 +159,25 @@ if __name__ == '__main__':
             t_n_gen = trial.suggest_int('n_gen', 10, 1000)
 
             # Run evolutions
-            # TODO: needs adjustment for specialist
-            run_evolutions(env, n_runs)
+            # TODO: needs adjustment for specialists
+            for env in envs:
+                run_evolutions(env, n_runs)
 
-            # TODO: Determine fitness of hyperparamaters e.g. by average fitness and/or max fitness obtained in runs
-            fitness = 1
+            # TODO: Determine fitness of hyperparamaters e.g. by average fitness and/or 
+            # max fitness obtained across environments and runs
+            # TODO: Needs restructuring for group training
+            all_fitnesses = np.load(os.path.join(DATA_FOLDER, f'{envs[0].enemies[0]}/all_fitnesses_{ENEMY_MODE}.npy'))
+            fitness = np.mean(all_fitnesses[:, -1, -1]) # mean of last run
             return fitness
 
-        study = optuna.create_study(direction='maximize')
+        # Select bayesian optimization algorithm (default is Tree-structured Parzen Estimator)
+        sampler = TPESampler(seed=SEED)
+        study = optuna.create_study(direction='maximize', sampler=sampler)
         study.optimize(hyerparam_trial_run, n_trials=n_trials)
-
-
+        
+        # Save results
+        df = study.trials_dataframe()
+        df.to_csv(os.path.join(DATA_FOLDER, 'tuning_results.csv'), index=False)
 
 
     if '--train' in sys.argv:
