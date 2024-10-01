@@ -165,7 +165,7 @@ if __name__ == '__main__':
                 run_evolutions(env, n_runs)
 
             # TODO: Determine fitness of hyperparamaters e.g. by average fitness and/or 
-            # max fitness obtained across environments and runs
+            # max fitness obtained across environments and runs or perhaps using multi-objective optimization?
             # TODO: Needs restructuring for group training
             all_fitnesses = np.load(os.path.join(DATA_FOLDER, f'{envs[0].enemies[0]}/all_fitnesses_{ENEMY_MODE}.npy'))
             fitness = np.mean(all_fitnesses[:, -1, -1]) # mean of last run
