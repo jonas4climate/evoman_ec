@@ -16,6 +16,7 @@ dependencies:
   - jupyter
   - tqdm
   - deap
+  - optuna
   - pip
   - pip:
       - neat-python

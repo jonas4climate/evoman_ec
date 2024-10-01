@@ -4,7 +4,7 @@ import os
 import sys
 import pandas as pd
 import tqdm
-
+import optuna
 from deap import base, creator, tools, algorithms, cma
 from evoman.environment import Environment
 from controller_cmaes import controller_cmaes
@@ -143,6 +143,31 @@ if __name__ == '__main__':
     n_repeats = 5
     if '--repeats' in sys.argv:
         n_repeats = int(sys.argv[sys.argv.index('--repeats') + 1])
+
+    n_trials = 10
+    if '--ntrials' in sys.argv:
+        n_trials = int(sys.argv[sys.argv.index('--ntrials') + 1])
+
+    if '--tune' in sys.argv:
+        def hyerparam_trial_run(trial):
+            # "Sample" hyperparameters
+            t_lambda = t_sigma = trial.suggest_float('sigma', 0.1, 10.0)
+            t_population_size = trial.suggest_int('neurons', 10, 1000)
+            t_n_gen = trial.suggest_int('n_gen', 10, 1000)
+
+            # Run evolutions
+            # TODO: needs adjustment for specialist
+            run_evolutions(env, n_runs)
+
+            # TODO: Determine fitness of hyperparamaters e.g. by average fitness and/or max fitness obtained in runs
+            fitness = 1
+            return fitness
+
+        study = optuna.create_study(direction='maximize')
+        study.optimize(hyerparam_trial_run, n_trials=n_trials)
+
+
+
 
     if '--train' in sys.argv:
         pbar_games = tqdm.tqdm(total=len(envs), desc='Training on games', unit='game', position=0)
