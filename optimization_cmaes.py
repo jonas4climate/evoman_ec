@@ -184,6 +184,8 @@ if __name__ == '__main__':
         SIGMA = best_params['sigma']
         LAMBDA = POPULATION_SIZE = best_params['pop_size']
         N_GEN = best_params['n_gen']
+        df = pd.DataFrame(best_params, index=[0])
+        df.to_csv(os.path.join(DATA_FOLDER, 'best_params.csv'), index=False)
 
     if '--train' in sys.argv:
         pbar_games = tqdm.tqdm(total=len(envs), desc='Training on games', unit='game', position=0)
