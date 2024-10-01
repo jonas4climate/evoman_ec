@@ -139,17 +139,18 @@ if __name__ == '__main__':
                             player_controller=controller_cmaes(),
                             visuals=False) for enemy in ENEMIES]
     
+    # Number of runs for training, testing and tuning
     n_runs = 1
     if '--runs' in sys.argv:
         n_runs = int(sys.argv[sys.argv.index('--runs') + 1])
 
-    n_repeats = 5
+    test_n_repeats = 5
     if '--repeats' in sys.argv:
-        n_repeats = int(sys.argv[sys.argv.index('--repeats') + 1])
+        test_n_repeats = int(sys.argv[sys.argv.index('--repeats') + 1])
 
-    n_trials = 10
+    tuning_n_trials = 10
     if '--ntrials' in sys.argv:
-        n_trials = int(sys.argv[sys.argv.index('--ntrials') + 1])
+        tuning_n_trials = int(sys.argv[sys.argv.index('--ntrials') + 1])
 
     if '--tune' in sys.argv:
         def hyerparam_trial_run(trial):
@@ -174,7 +175,7 @@ if __name__ == '__main__':
         # Select bayesian optimization algorithm (default is Tree-structured Parzen Estimator)
         sampler = TPESampler(seed=SEED)
         study = optuna.create_study(direction='maximize', sampler=sampler)
-        study.optimize(hyerparam_trial_run, n_trials=n_trials)
+        study.optimize(hyerparam_trial_run, n_trials=tuning_n_trials)
         
         # Save results
         df = study.trials_dataframe()
@@ -189,17 +190,17 @@ if __name__ == '__main__':
 
     if '--test' in sys.argv:
         for (i, env) in tqdm.tqdm(enumerate(envs), total=len(envs), desc='Testing on games', unit='game', position=0):
-            gains = np.zeros(n_repeats * n_runs)
+            gains = np.zeros(test_n_repeats * n_runs)
 
             for j in range(n_runs):
                 with open(os.path.join(DATA_FOLDER, f"{env.enemies[0]}/best_individual_run{j}_static.npy"), 'rb') as f:
                     optimal_weights = np.load(f)
                 env.player_controller.set_weights(optimal_weights, NUM_HIDDEN)
 
-                for k in range(n_repeats):
+                for k in range(test_n_repeats):
                     _, pl, el, _ = env.play()
                     # Gain = player life - enemy life
-                    gains[j*n_repeats + k] = pl - el
+                    gains[j*test_n_repeats + k] = pl - el
 
             # Save the gains
             np.save(os.path.join(DATA_FOLDER, f'{env.enemies[0]}', 'gains.npy'), gains)
