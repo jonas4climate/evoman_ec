@@ -154,9 +154,10 @@ if __name__ == '__main__':
     if '--tune' in sys.argv:
         def hyerparam_trial_run(trial):
             # "Sample" hyperparameters
-            t_lambda = t_sigma = trial.suggest_float('sigma', 0.1, 10.0)
-            t_population_size = trial.suggest_int('neurons', 10, 1000)
-            t_n_gen = trial.suggest_int('n_gen', 10, 1000)
+            global LAMBDA, POPULATION_SIZE, N_GEN, SIGMA
+            LAMBDA = SIGMA = trial.suggest_float('sigma', 0.1, 10.0)
+            POPULATION_SIZE = trial.suggest_int('neurons', 10, 1000)
+            N_GEN = trial.suggest_int('n_gen', 10, 1000)
 
             # Run evolutions
             # TODO: needs adjustment for specialists
