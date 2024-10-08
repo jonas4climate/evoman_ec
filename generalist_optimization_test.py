@@ -2,8 +2,8 @@ import random
 import numpy as np
 import os
 import pandas as pd
-import tqdm
 
+from tqdm.auto import tqdm
 from deap import base, creator, tools, cma
 from evoman.environment import Environment
 from controller_cmaes import controller_cmaes
@@ -20,13 +20,13 @@ ENEMY_SET_2 = [2, 6, 7, 8]
 NUM_HIDDEN = 10
 
 # Number of repeated runs
-N_RUNS = 2 # TODO: Change
+N_RUNS = 5 # TODO: Change
 
 # Number of individuals
-POPULATION_SIZE = 10 # TODO: Change
+POPULATION_SIZE = 100 # TODO: Change
 
 # Number of generations
-NGEN = 100
+NGEN = 100 # TODO: Change
 
 # Hall-of-fame size (number of best individuals across-all-generations saved)
 HOF_SIZE = 1
@@ -35,7 +35,7 @@ HOF_SIZE = 1
 SIGMA = 2.5
 
 # Number of children to produce at each generation
-LAMBDA = 10 # TODO: Change
+LAMBDA = 100 # TODO: Change
 
 np.random.seed(42)
 
@@ -118,7 +118,7 @@ def setup_data_collector():
 def run_evolutions(env, n_runs=1):
 
     # TQDM's progress bar
-    pbar_gens = tqdm.tqdm(total=n_runs*NGEN, desc=f'Training generalist against enemies: {env.enemies}', unit='gen', position=1)
+    pbar_gens = tqdm(total=n_runs*NGEN, desc=f'Training generalist against enemies: {env.enemies}', unit='gen')
 
     # Numer of weights in the neural network
     # --- 21 := (no. of sensors + 1)
@@ -172,7 +172,7 @@ def run_evolutions(env, n_runs=1):
             all_fitnesses[run, gen] = [ind.fitness.values[0] for ind in population]
 
             # Update the progress bar
-            pbar_gens.update(1)
+            pbar_gens.update()
 
         # Save the best individual from the current run
         best_individuals[run] = hof[0]
@@ -191,10 +191,6 @@ if __name__ == '__main__':
     ENV_1 = create_environment(EXP_NAME_1, ENEMY_SET_1)
     ENV_2 = create_environment(EXP_NAME_2, ENEMY_SET_2)
 
-    # Folder setup
-    os.makedirs(DATA_FOLDER_1, exist_ok=True)
-    os.makedirs(DATA_FOLDER_2, exist_ok=True)
-
     # Deap setup
     creator.create("FitnessMax", base.Fitness, weights=(1.0,))  
     creator.create("Individual", np.ndarray, fitness=creator.FitnessMax) # type: ignore
@@ -204,10 +200,14 @@ if __name__ == '__main__':
         # Run the training loop
         all_fitnesses, best_individuals, df_stats = run_evolutions(env, N_RUNS)
 
+        # Delete folder and create folder to reset its contents
+        for file in os.listdir(data_folder):
+            os.remove(os.path.join(data_folder, file))
+        os.removedirs(data_folder)
+        os.makedirs(data_folder)
+
         # Save the data for each run
         for run in range(1, N_RUNS + 1):
-            # Create folder if doesn't exist yet
-            os.makedirs(data_folder, exist_ok=True)
 
             # Save all fitness across all runs
             np.save(os.path.join(data_folder, f'all_fitnesses.npy'), all_fitnesses)
