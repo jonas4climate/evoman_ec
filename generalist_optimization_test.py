@@ -3,68 +3,70 @@ import numpy as np
 import os
 import pandas as pd
 import tqdm
+import multiprocessing
+
+import optuna
+from optuna.samplers import TPESampler
 
 from deap import base, creator, tools, cma
 from evoman.environment import Environment
 from controller_cmaes import controller_cmaes
 
-# Folders to be created for data storage
-EXP_NAME_1, EXP_NAME_2 = 'generalist_test_set_1', 'generalist_test_set_2'
-DATA_FOLDER_1, DATA_FOLDER_2 = os.path.join('data', EXP_NAME_1), os.path.join('data', EXP_NAME_2)
-
 # Two groups of enemies
 ENEMY_SET_1 = [3, 5, 7]
 ENEMY_SET_2 = [2, 6, 7, 8]
 
-# Number of hidden layers in the neural network
-NUM_HIDDEN = 10
+# Folders to be created for data storage
+EXP_NAME_1, EXP_NAME_2 = f'{ENEMY_SET_1}', f'{ENEMY_SET_2}'
+DATA_FOLDER_1, DATA_FOLDER_2 = os.path.join('data', 'cmaes', EXP_NAME_1), os.path.join('data', 'cmaes', EXP_NAME_2)
 
 # Number of repeated runs
-N_RUNS = 2 # TODO: Change
+N_RUNS = 2
 
-# Number of individuals
-POPULATION_SIZE = 10 # TODO: Change
-
-# Number of generations
-NGEN = 100
-
-# Hall-of-fame size (number of best individuals across-all-generations saved)
+# Hall-of-fame size (number of best individuals during evolution saved)
 HOF_SIZE = 1
 
-# The initial standard deviation of the distribution.
+## Hyperparameters for CMA-ES
+POPULATION_SIZE = 100
 SIGMA = 2.5
+NGEN = 10
 
-# Number of children to produce at each generation
-LAMBDA = 10 # TODO: Change
+## Hyperparameter search parameters
+HP_POP_SIZE_RANGE = (10, 500)
+HP_SIGMA_RANGE = (0.1, 10.0)
+HP_N_RUNS = 2
+HP_N_TRIALS = 10
+HP_PARALLEL_RUNS = os.cpu_count()  # Will control how many processes we spawn
 
-np.random.seed(42)
+HP_FITNESS_CRITERION = np.max  # Fitness criterion
+NUM_HIDDEN = 10  # Number of hidden layers
+
+creator.create("FitnessMax", base.Fitness, weights=(1.0,))
+creator.create("Individual", np.ndarray, fitness=creator.FitnessMax)
+
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
+optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+SEED = 42
+np.random.seed(SEED)
+
+class CMAESConfig():
+    def __init__(self, sigma, population_size):
+        self.sigma = sigma
+        self.population_size = population_size
+
+    def __str__(self):
+        return f"CMA-ES (sigma={self.sigma}, population_size={self.population_size})"
+
+    def __repr__(self):
+        return self.__str__()
 
 def evaluate_fitness(individual, environment):
-    """Helper function for evaluating fitness of a given individual.
-
-    Args:
-        individual (np.array[float]): array of weights to be fed into the player's neural network
-        environment (Environment): Evoman framework's Environment object to run the game on
-
-    Returns:
-        agg_fitness: Fitness aggregated from all enemies the game was ran on
-    """    
-
-    # Set the weights corresponding to the given individual
     environment.player_controller.set_weights(individual, NUM_HIDDEN)
-
-    # Run the game against all opponents and return default aggregated fitness
     agg_fitness, _, _, _ = environment.play()
     return agg_fitness,
 
 def create_environment(experiment_name, enemy_set, visuals=False):
-    """Returns an Environment object for the Evoman framework.
-
-    Args:
-        experiment_name (string): name of the experiment, used for logging
-        enemy_set (List[int]): list with enemies to train on
-        visuals (bool, optional): Whether to display environment to the screen. Defaults to False.
-    """
     return Environment(experiment_name=experiment_name,
                         enemies=enemy_set,
                         multiplemode="yes",
@@ -72,148 +74,110 @@ def create_environment(experiment_name, enemy_set, visuals=False):
                         speed='normal' if visuals else 'fastest',
                         player_controller=controller_cmaes(),
                         savelogs="no",
+                        logs="off",
                         clockprec="low",
                         visuals=visuals)
 
-def setup_toolbox(N):
-    """Helper function for setting up toolbox (setup) from the Deap package.
-
-    Args:
-        N (int): no. of weights required for the neural network
-    """
-    # Create a new toolbox (setup)
+def setup_toolbox(N, env, config):
     toolbox = base.Toolbox()
-
-    # Creates the initial population of individuals
     toolbox.register("attr_float", random.uniform, -1.0, 1.0)
     toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.attr_float, n=N)
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
     toolbox.register("evaluate", evaluate_fitness, environment=env)
-
-    # CMA-ES setup
     centroid = np.zeros(N)
-    strategy = cma.Strategy(centroid=centroid, sigma=SIGMA, lambda_=LAMBDA)
+    strategy = cma.Strategy(centroid=centroid, sigma=config.sigma, lambda_=config.population_size)
     toolbox.register("generate", strategy.generate, creator.Individual)
     toolbox.register("update", strategy.update)
-
     return toolbox
 
 def setup_data_collector():
-    """Helper function for setting up data collector from the Deap package.
-
-    Args:
-        stats (deap.tools.Statistics): 
-    """
-    # Creates Statistics object and binds it to fitness values
     stats = tools.Statistics(lambda ind: ind.fitness.values)
-
-    # Sets up data to be registered at each step: mean, std and min / max fitness in population
     stats.register("avg", np.mean)
     stats.register("std", np.std)
     stats.register("min", np.min)
     stats.register("max", np.max)
-
     return stats
 
-def run_evolutions(env, n_runs=1):
-
-    # TQDM's progress bar
-    pbar_gens = tqdm.tqdm(total=n_runs*NGEN, desc=f'Training generalist against enemies: {env.enemies}', unit='gen', position=1)
-
-    # Numer of weights in the neural network
-    # --- 21 := (no. of sensors + 1)
-    # --- 5 := no. of outputs 
+def run_evolutions(env, config, n_runs=1, pbar_pos=2):
+    pbar_gens = tqdm.tqdm(total=n_runs*NGEN, desc=f'Run {pbar_pos-1} | sigma={config.sigma:.2f}  n_pop={config.population_size}', unit='gen', position=pbar_pos)
     N = 21 * NUM_HIDDEN + (NUM_HIDDEN + 1) * 5
-
-    # Numpy array that will store all fitness values across all runs, generations and individuals
-    all_fitnesses = np.zeros((n_runs, NGEN, POPULATION_SIZE))
-
-    # Numpy array that will store weights of HoF-best individual at each generation
+    all_fitnesses = np.zeros((n_runs, NGEN, config.population_size))
     best_individuals = np.zeros((n_runs, N))
 
     for run in range(n_runs):
-
-        # Reset the toolbox
-        toolbox = setup_toolbox(N)
-        
-        # Create initial population
-        population = toolbox.population(n=POPULATION_SIZE)
-
-        # Setup the Hall-of-Fame
+        toolbox = setup_toolbox(N, env, config)
+        population = toolbox.population(n=config.population_size)
         hof = tools.HallOfFame(HOF_SIZE, similar=lambda a, b: np.array_equal(a.fitness.values, b.fitness.values))
-
-        # Setup the data collector
         stats = setup_data_collector()
-
-        # Logging
         logbook = tools.Logbook()
         logbook.header = ['gen', 'nevals'] + stats.fields
 
-        # Main loop running across all generations
         for gen in range(NGEN):
-
-            # Generate new individuals and evaluate their fitness
             population = toolbox.generate()
             fitnesses = list(map(toolbox.evaluate, population))
             for ind, fit in zip(population, fitnesses):
                 ind.fitness.values = fit
-
-            # Update current population and the Hall-of-Fame
             toolbox.update(population)
             hof.update(population)
-
-            # Save the data in Deap's Statistics object
             record = stats.compile(population)
-
-            # Create logs
             logbook.record(gen=gen, nevals=len(population), **record)
-
-            # Save fitnesses from the current generation
             all_fitnesses[run, gen] = [ind.fitness.values[0] for ind in population]
-
-            # Update the progress bar
             pbar_gens.update(1)
 
-        # Save the best individual from the current run
         best_individuals[run] = hof[0]
     
-    # Create the stats dataframe based on Deap's logbook
     df_stats = pd.DataFrame(logbook)
-
-    # Close the progress bar
     pbar_gens.close()
-
     return all_fitnesses, best_individuals, df_stats
 
-if __name__ == '__main__':
+def run_trial_in_subprocess(trial, conn, config):
+    # trial_seed = SEED + trial.number
+    # np.random.seed(trial_seed)
+    # random.seed(trial_seed)
 
-    # Create environments
-    ENV_1 = create_environment(EXP_NAME_1, ENEMY_SET_1)
-    ENV_2 = create_environment(EXP_NAME_2, ENEMY_SET_2)
-
-    # Folder setup
-    os.makedirs(DATA_FOLDER_1, exist_ok=True)
-    os.makedirs(DATA_FOLDER_2, exist_ok=True)
-
-    # Deap setup
-    creator.create("FitnessMax", base.Fitness, weights=(1.0,))  
-    creator.create("Individual", np.ndarray, fitness=creator.FitnessMax) # type: ignore
+    env = create_environment(EXP_NAME_1, ENEMY_SET_1)
     
-    for (env, data_folder) in zip([ENV_1, ENV_2], [DATA_FOLDER_1, DATA_FOLDER_2]):
+    all_fitnesses, _, _ = run_evolutions(env, config, HP_N_RUNS, pbar_pos=2+trial.number)
+    hp_fitness = float(HP_FITNESS_CRITERION(all_fitnesses))
+    if not isinstance(hp_fitness, (float, int)) or hp_fitness is None:
+        raise ValueError(f"Invalid fitness value for trial {trial.number}: {hp_fitness}")
 
-        # Run the training loop
-        all_fitnesses, best_individuals, df_stats = run_evolutions(env, N_RUNS)
+    conn.send(hp_fitness)
+    conn.close()
 
-        # Save the data for each run
-        for run in range(1, N_RUNS + 1):
-            # Create folder if doesn't exist yet
-            os.makedirs(data_folder, exist_ok=True)
+def hyperparameter_search():
+    # pbar = tqdm.tqdm(total=HP_N_TRIALS, desc='Hyperparameter search', unit='trial', position=1, leave=True)
 
-            # Save all fitness across all runs
-            np.save(os.path.join(data_folder, f'all_fitnesses.npy'), all_fitnesses)
+    def run_trial(trial):
+        sigma = trial.suggest_float('sigma', *HP_SIGMA_RANGE)
+        pop_size = trial.suggest_int('pop_size', *HP_POP_SIZE_RANGE, log=True)
+        config = CMAESConfig(sigma=sigma, population_size=pop_size)
+        parent_conn, child_conn = multiprocessing.Pipe()
+        process = multiprocessing.Process(target=run_trial_in_subprocess, args=(trial, child_conn, config))
+        process.start()
+        hp_fitness = parent_conn.recv()  # Get the fitness result from the child process
+        process.join()
+        if hp_fitness is None:
+            raise RuntimeError(f"Trial {trial.number} failed.")
+        return hp_fitness
+    
+    # def update_pbar(study, trial):
+    #     pbar.update(1)
 
-            # Save best individuals
-            np.save(os.path.join(data_folder, f'best_individual_run{run}.npy'), best_individuals[run - 1])
+    study = optuna.create_study(direction='maximize', sampler=TPESampler())
+    # study.optimize(run_trial, n_trials=HP_N_TRIALS, n_jobs=HP_PARALLEL_RUNS, callbacks=[update_pbar])
+    study.optimize(run_trial, n_trials=HP_N_TRIALS, n_jobs=HP_PARALLEL_RUNS)
+    df = study.trials_dataframe()
+    df.to_csv(os.path.join(DATA_FOLDER_1, 'hp_trials_data.csv'), index=False)
 
-            # Save statistics
-            df_stats.to_csv(os.path.join(data_folder, f'stats_run{run}.csv'), index=False)
+    best_params = study.best_params
+    sigma = best_params['sigma']
+    population_size = best_params['pop_size']
+    config = CMAESConfig(sigma=sigma, population_size=population_size)
+    df = pd.DataFrame(best_params, index=[0])
+    df.to_csv(os.path.join(DATA_FOLDER_1, 'hp_best_params.csv'), index=False)
+
+    return config
+
+if __name__ == '__main__':
+    hyperparameter_search()
