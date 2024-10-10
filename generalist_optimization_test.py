@@ -1,13 +1,14 @@
 import random
-import numpy as np
 import os
+import numpy as np
 import pandas as pd
 import tqdm
+
 import multiprocessing
+import gc
 
 import optuna
 from optuna.samplers import TPESampler
-
 from deap import base, creator, tools, cma
 from evoman.environment import Environment
 from controller_cmaes import controller_cmaes
@@ -19,9 +20,11 @@ ENEMY_SET_2 = [2, 6, 7, 8]
 # Folders to be created for data storage
 EXP_NAME_1, EXP_NAME_2 = f'{ENEMY_SET_1}', f'{ENEMY_SET_2}'
 DATA_FOLDER_1, DATA_FOLDER_2 = os.path.join('data', 'cmaes', EXP_NAME_1), os.path.join('data', 'cmaes', EXP_NAME_2)
+os.makedirs(DATA_FOLDER_1, exist_ok=True)
+os.makedirs(DATA_FOLDER_2, exist_ok=True)
 
 # Number of repeated runs
-N_RUNS = 2
+N_RUNS = 5
 
 # Hall-of-fame size (number of best individuals during evolution saved)
 HOF_SIZE = 1
@@ -29,13 +32,13 @@ HOF_SIZE = 1
 ## Hyperparameters for CMA-ES
 POPULATION_SIZE = 100
 SIGMA = 2.5
-NGEN = 10
+NGEN = 100 #200
 
 ## Hyperparameter search parameters
-HP_POP_SIZE_RANGE = (10, 500)
+HP_POP_SIZE_RANGE = (10, 200)
 HP_SIGMA_RANGE = (0.1, 10.0)
-HP_N_RUNS = 2
-HP_N_TRIALS = 10
+HP_N_RUNS = 3
+HP_N_TRIALS = 20
 HP_PARALLEL_RUNS = os.cpu_count()  # Will control how many processes we spawn
 
 HP_FITNESS_CRITERION = np.max  # Fitness criterion
@@ -98,6 +101,7 @@ def setup_data_collector():
     stats.register("max", np.max)
     return stats
 
+
 def run_evolutions(env, config, n_runs=1, pbar_pos=2):
     pbar_gens = tqdm.tqdm(total=n_runs*NGEN, desc=f'Run {pbar_pos-1} | sigma={config.sigma:.2f}  n_pop={config.population_size}', unit='gen', position=pbar_pos)
     N = 21 * NUM_HIDDEN + (NUM_HIDDEN + 1) * 5
@@ -149,14 +153,20 @@ def hyperparameter_search():
     # pbar = tqdm.tqdm(total=HP_N_TRIALS, desc='Hyperparameter search', unit='trial', position=1, leave=True)
 
     def run_trial(trial):
-        sigma = trial.suggest_float('sigma', *HP_SIGMA_RANGE)
-        pop_size = trial.suggest_int('pop_size', *HP_POP_SIZE_RANGE, log=True)
+        sigma = trial.suggest_float('sigma', *HP_SIGMA_RANGE, log=True)
+        pop_size = trial.suggest_int('pop_size', *HP_POP_SIZE_RANGE)
         config = CMAESConfig(sigma=sigma, population_size=pop_size)
         parent_conn, child_conn = multiprocessing.Pipe()
         process = multiprocessing.Process(target=run_trial_in_subprocess, args=(trial, child_conn, config))
         process.start()
         hp_fitness = parent_conn.recv()  # Get the fitness result from the child process
         process.join()
+
+        # Cleanup
+        process.close()
+        parent_conn.close()
+        child_conn.close()
+
         if hp_fitness is None:
             raise RuntimeError(f"Trial {trial.number} failed.")
         return hp_fitness
@@ -166,7 +176,7 @@ def hyperparameter_search():
 
     study = optuna.create_study(direction='maximize', sampler=TPESampler())
     # study.optimize(run_trial, n_trials=HP_N_TRIALS, n_jobs=HP_PARALLEL_RUNS, callbacks=[update_pbar])
-    study.optimize(run_trial, n_trials=HP_N_TRIALS, n_jobs=HP_PARALLEL_RUNS)
+    study.optimize(run_trial, n_trials=HP_N_TRIALS, n_jobs=HP_PARALLEL_RUNS, gc_after_trial=True)
     df = study.trials_dataframe()
     df.to_csv(os.path.join(DATA_FOLDER_1, 'hp_trials_data.csv'), index=False)
 
