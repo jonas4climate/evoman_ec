@@ -6,6 +6,7 @@ import tqdm
 
 import multiprocessing
 import gc
+import tracemalloc
 
 import optuna
 from optuna.samplers import TPESampler
@@ -39,7 +40,7 @@ HP_POP_SIZE_RANGE = (10, 200)
 HP_SIGMA_RANGE = (0.1, 10.0)
 HP_N_RUNS = 3
 HP_N_TRIALS = 20
-HP_PARALLEL_RUNS = os.cpu_count()  # Will control how many processes we spawn
+HP_PARALLEL_RUNS = os.cpu_count()  # Will control how many processes we spawn, 1 for serial implementation
 
 HP_FITNESS_CRITERION = np.max  # Fitness criterion
 NUM_HIDDEN = 10  # Number of hidden layers
@@ -135,6 +136,7 @@ def run_evolutions(env, config, n_runs=1, pbar_pos=2):
     return all_fitnesses, best_individuals, df_stats
 
 def run_trial_in_subprocess(trial, conn, config):
+    # # Custom seeding
     # trial_seed = SEED + trial.number
     # np.random.seed(trial_seed)
     # random.seed(trial_seed)
@@ -143,40 +145,41 @@ def run_trial_in_subprocess(trial, conn, config):
     
     all_fitnesses, _, _ = run_evolutions(env, config, HP_N_RUNS, pbar_pos=2+trial.number)
     hp_fitness = float(HP_FITNESS_CRITERION(all_fitnesses))
+
     if not isinstance(hp_fitness, (float, int)) or hp_fitness is None:
         raise ValueError(f"Invalid fitness value for trial {trial.number}: {hp_fitness}")
-
-    conn.send(hp_fitness)
-    conn.close()
+    
+    if conn is not None:
+        conn.send(hp_fitness)
+        conn.close()
 
 def hyperparameter_search():
     # pbar = tqdm.tqdm(total=HP_N_TRIALS, desc='Hyperparameter search', unit='trial', position=1, leave=True)
 
-    def run_trial(trial):
+    def run_trial(trial, parallel=False):
         sigma = trial.suggest_float('sigma', *HP_SIGMA_RANGE, log=True)
         pop_size = trial.suggest_int('pop_size', *HP_POP_SIZE_RANGE)
         config = CMAESConfig(sigma=sigma, population_size=pop_size)
-        parent_conn, child_conn = multiprocessing.Pipe()
-        process = multiprocessing.Process(target=run_trial_in_subprocess, args=(trial, child_conn, config))
-        process.start()
-        hp_fitness = parent_conn.recv()  # Get the fitness result from the child process
-        process.join()
+        if parallel:
+            parent_conn, child_conn = multiprocessing.Pipe()
+            process = multiprocessing.Process(target=run_trial_in_subprocess, args=(trial, child_conn, config))
+            process.start()
+            hp_fitness = parent_conn.recv()
+            process.join()
 
-        # Cleanup
-        process.close()
-        parent_conn.close()
-        child_conn.close()
+            process.close()
+            parent_conn.close()
+            child_conn.close()
+        else:
+            hp_fitness = run_trial_in_subprocess(trial, None, config)
 
         if hp_fitness is None:
             raise RuntimeError(f"Trial {trial.number} failed.")
         return hp_fitness
     
-    # def update_pbar(study, trial):
-    #     pbar.update(1)
-
     study = optuna.create_study(direction='maximize', sampler=TPESampler())
-    # study.optimize(run_trial, n_trials=HP_N_TRIALS, n_jobs=HP_PARALLEL_RUNS, callbacks=[update_pbar])
-    study.optimize(run_trial, n_trials=HP_N_TRIALS, n_jobs=HP_PARALLEL_RUNS, gc_after_trial=True)
+    parallel = True if HP_PARALLEL_RUNS > 1 else False
+    study.optimize(lambda trial: run_trial(trial, parallel), n_trials=HP_N_TRIALS, n_jobs=HP_PARALLEL_RUNS, gc_after_trial=True)
     df = study.trials_dataframe()
     df.to_csv(os.path.join(DATA_FOLDER_1, 'hp_trials_data.csv'), index=False)
 
