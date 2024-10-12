@@ -192,11 +192,14 @@ if __name__ == '__main__':
     for folder in data_folders:
         os.makedirs(folder, exist_ok=True)
     set_names, enemy_sets = zip(*ENEMY_SETS.items())
-    if '--tune' in sys.argv:
-        for name, folder, enemy_set in zip(set_names, data_folders, enemy_sets):
+    for name, folder, enemy_set in zip(set_names, data_folders, enemy_sets):
+        if '--tune' in sys.argv:
             hyperparameter_search(name, folder, enemy_set)
-    if '--load' in sys.argv:
-        # Load hyperparameters from file
-        pass
-    if '--run' in sys.argv:
-        pass
+        if '--run' in sys.argv:
+            env = create_environment(name, enemy_set)
+            config = CMAESConfig(sigma=SIGMA, population_size=POPULATION_SIZE)
+            all_fitnesses, best_individuals, df_stats = run_evolutions(env, config, n_runs=N_RUNS)
+            df_stats.to_csv(os.path.join(folder, 'cmaes_stats.csv'), index=False)
+            np.save(os.path.join(folder, 'cmaes_all_fitnesses.npy'), all_fitnesses)
+            np.save(os.path.join(folder, 'cmaes_best_individuals.npy'), best_individuals)
+            print(f"Results saved to {folder}")
