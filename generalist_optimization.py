@@ -1,28 +1,23 @@
 import random
 import os
+import sys
+import multiprocessing
+import tqdm
 import numpy as np
 import pandas as pd
-import tqdm
-
-import multiprocessing
-import gc
-import tracemalloc
 
 import optuna
 from optuna.samplers import TPESampler
+
 from deap import base, creator, tools, cma
 from evoman.environment import Environment
 from controller_cmaes import controller_cmaes
 
 # Two groups of enemies
-ENEMY_SET_1 = [3, 5, 7]
-ENEMY_SET_2 = [2, 6, 7, 8]
-
-# Folders to be created for data storage
-EXP_NAME_1, EXP_NAME_2 = f'{ENEMY_SET_1}', f'{ENEMY_SET_2}'
-DATA_FOLDER_1, DATA_FOLDER_2 = os.path.join('data', 'cmaes', EXP_NAME_1), os.path.join('data', 'cmaes', EXP_NAME_2)
-os.makedirs(DATA_FOLDER_1, exist_ok=True)
-os.makedirs(DATA_FOLDER_2, exist_ok=True)
+ENEMY_SETS = {
+    'set_1': [3, 5, 7],
+    'set_2': [2, 6, 7, 8]
+}
 
 # Number of repeated runs
 N_RUNS = 5
@@ -33,16 +28,16 @@ HOF_SIZE = 1
 ## Hyperparameters for CMA-ES
 POPULATION_SIZE = 100
 SIGMA = 2.5
-NGEN = 100 #200
+NGEN = 200
 
 ## Hyperparameter search parameters
 HP_POP_SIZE_RANGE = (10, 200)
 HP_SIGMA_RANGE = (0.1, 10.0)
 HP_N_RUNS = 3
-HP_N_TRIALS = 20
+HP_N_TRIALS = 10
 HP_PARALLEL_RUNS = os.cpu_count()  # Will control how many processes we spawn, 1 for serial implementation
 
-HP_FITNESS_CRITERION = np.max  # Fitness criterion
+HP_FITNESS_CRITERION = np.mean  # Fitness criterion
 NUM_HIDDEN = 10  # Number of hidden layers
 
 creator.create("FitnessMax", base.Fitness, weights=(1.0,))
@@ -135,16 +130,16 @@ def run_evolutions(env, config, n_runs=1, pbar_pos=2):
     pbar_gens.close()
     return all_fitnesses, best_individuals, df_stats
 
-def run_trial_in_subprocess(trial, conn, config):
+def run_trial_in_subprocess(trial, conn, config, set_name, enemy_set, criterion=HP_FITNESS_CRITERION):
     # # Custom seeding
     # trial_seed = SEED + trial.number
     # np.random.seed(trial_seed)
     # random.seed(trial_seed)
 
-    env = create_environment(EXP_NAME_1, ENEMY_SET_1)
+    env = create_environment(set_name, enemy_set)
     
     all_fitnesses, _, _ = run_evolutions(env, config, HP_N_RUNS, pbar_pos=2+trial.number)
-    hp_fitness = float(HP_FITNESS_CRITERION(all_fitnesses))
+    hp_fitness = float(criterion(all_fitnesses))
 
     if not isinstance(hp_fitness, (float, int)) or hp_fitness is None:
         raise ValueError(f"Invalid fitness value for trial {trial.number}: {hp_fitness}")
@@ -153,7 +148,7 @@ def run_trial_in_subprocess(trial, conn, config):
         conn.send(hp_fitness)
         conn.close()
 
-def hyperparameter_search():
+def hyperparameter_search(set_name, data_folder, enemy_set):
     # pbar = tqdm.tqdm(total=HP_N_TRIALS, desc='Hyperparameter search', unit='trial', position=1, leave=True)
 
     def run_trial(trial, parallel=False):
@@ -162,7 +157,7 @@ def hyperparameter_search():
         config = CMAESConfig(sigma=sigma, population_size=pop_size)
         if parallel:
             parent_conn, child_conn = multiprocessing.Pipe()
-            process = multiprocessing.Process(target=run_trial_in_subprocess, args=(trial, child_conn, config))
+            process = multiprocessing.Process(target=run_trial_in_subprocess, args=(trial, child_conn, config, set_name, enemy_set))
             process.start()
             hp_fitness = parent_conn.recv()
             process.join()
@@ -171,7 +166,7 @@ def hyperparameter_search():
             parent_conn.close()
             child_conn.close()
         else:
-            hp_fitness = run_trial_in_subprocess(trial, None, config)
+            hp_fitness = run_trial_in_subprocess(trial, None, config, set_name, enemy_set)
 
         if hp_fitness is None:
             raise RuntimeError(f"Trial {trial.number} failed.")
@@ -181,16 +176,27 @@ def hyperparameter_search():
     parallel = True if HP_PARALLEL_RUNS > 1 else False
     study.optimize(lambda trial: run_trial(trial, parallel), n_trials=HP_N_TRIALS, n_jobs=HP_PARALLEL_RUNS, gc_after_trial=True)
     df = study.trials_dataframe()
-    df.to_csv(os.path.join(DATA_FOLDER_1, 'hp_trials_data.csv'), index=False)
+    df.to_csv(os.path.join(data_folder, 'hp_trials_data.csv'), index=False)
 
     best_params = study.best_params
     sigma = best_params['sigma']
     population_size = best_params['pop_size']
     config = CMAESConfig(sigma=sigma, population_size=population_size)
     df = pd.DataFrame(best_params, index=[0])
-    df.to_csv(os.path.join(DATA_FOLDER_1, 'hp_best_params.csv'), index=False)
+    df.to_csv(os.path.join(data_folder, 'hp_best_params.csv'), index=False)
 
     return config
 
 if __name__ == '__main__':
-    hyperparameter_search()
+    data_folders = [os.path.join('data', 'cmaes', f'{ENEMY_SETS[key]}') for key in ENEMY_SETS.keys()]
+    for folder in data_folders:
+        os.makedirs(folder, exist_ok=True)
+    set_names, enemy_sets = zip(*ENEMY_SETS.items())
+    if '--tune' in sys.argv:
+        for name, folder, enemy_set in zip(set_names, data_folders, enemy_sets):
+            hyperparameter_search(name, folder, enemy_set)
+    if '--load' in sys.argv:
+        # Load hyperparameters from file
+        pass
+    if '--run' in sys.argv:
+        pass
