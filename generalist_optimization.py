@@ -12,6 +12,7 @@ from optuna.samplers import TPESampler
 from deap import base, creator, tools, cma
 from evoman.environment import Environment
 from controller_cmaes import controller_cmaes
+from util import crit_mean_of_max, crit_max, crit_mean
 
 # Two groups of enemies
 ENEMY_SETS = {
@@ -26,18 +27,18 @@ N_RUNS = 5
 HOF_SIZE = 1
 
 ## Hyperparameters for CMA-ES
-POPULATION_SIZE = 100
-SIGMA = 2.5
-NGEN = 200
+POPULATION_SIZE = 100 # (tune-able)
+SIGMA = 2.5 # (tune-able)
+NGEN = 200 # (not tune-able)
 
 ## Hyperparameter search parameters
 HP_POP_SIZE_RANGE = (10, 200)
 HP_SIGMA_RANGE = (0.1, 10.0)
 HP_N_RUNS = 3
 HP_N_TRIALS = 10
-HP_PARALLEL_RUNS = os.cpu_count()  # Will control how many processes we spawn, 1 for serial implementation
+HP_PARALLEL_RUNS = 6 # os.cpu_count()  # 1 for serial implementation
 
-HP_FITNESS_CRITERION = np.mean  # Fitness criterion
+HP_FITNESS_CRITERION = crit_mean_of_max # Alternatives defined in util.py
 NUM_HIDDEN = 10  # Number of hidden layers
 
 creator.create("FitnessMax", base.Fitness, weights=(1.0,))
@@ -98,13 +99,22 @@ def setup_data_collector():
     return stats
 
 
-def run_evolutions(env, config, n_runs=1, pbar_pos=2):
-    pbar_gens = tqdm.tqdm(total=n_runs*NGEN, desc=f'Run {pbar_pos-1} | sigma={config.sigma:.2f}  n_pop={config.population_size}', unit='gen', position=pbar_pos)
+def run_evolutions(env, config, n_runs=1, pbar_pos=2, parallel=False):
     N = 21 * NUM_HIDDEN + (NUM_HIDDEN + 1) * 5
     all_fitnesses = np.zeros((n_runs, NGEN, config.population_size))
     best_individuals = np.zeros((n_runs, N))
+    list_run_stats = []
 
-    for run in range(n_runs):
+    def run_evolution(run, env, config):
+        pbar_gens = tqdm.tqdm(total=NGEN, desc=f'Run {run+1} | sigma={config.sigma:.2f}  n_pop={config.population_size:3d}', unit='gen', position=pbar_pos+run)
+
+        # Custom seeding
+        run_seed = SEED + HP_N_TRIALS + run + 1
+        np.random.seed(run_seed)
+        random.seed(run_seed)
+
+        run_fitnesses = np.zeros((NGEN, config.population_size))
+
         toolbox = setup_toolbox(N, env, config)
         population = toolbox.population(n=config.population_size)
         hof = tools.HallOfFame(HOF_SIZE, similar=lambda a, b: np.array_equal(a.fitness.values, b.fitness.values))
@@ -121,25 +131,36 @@ def run_evolutions(env, config, n_runs=1, pbar_pos=2):
             hof.update(population)
             record = stats.compile(population)
             logbook.record(gen=gen, nevals=len(population), **record)
-            all_fitnesses[run, gen] = [ind.fitness.values[0] for ind in population]
+            run_fitnesses[gen] = [ind.fitness.values[0] for ind in population]
             pbar_gens.update(1)
 
-        best_individuals[run] = hof[0]
-    
-    df_stats = pd.DataFrame(logbook)
-    pbar_gens.close()
-    return all_fitnesses, best_individuals, df_stats
+        best_individual = hof[0]
+        run_stats = pd.DataFrame(logbook)
+        return run_fitnesses, best_individual, run_stats
 
-def run_trial_in_subprocess(trial, conn, config, set_name, enemy_set, criterion=HP_FITNESS_CRITERION):
-    # # Custom seeding
-    # trial_seed = SEED + trial.number
-    # np.random.seed(trial_seed)
-    # random.seed(trial_seed)
+    if parallel:
+        raise NotImplementedError("Haven't figured this out yet.")
+    else:
+        pbar_runs = tqdm.tqdm(total=n_runs, desc='Runs', unit='run', position=pbar_pos)
+        for run in range(n_runs):
+            run_fitnesses, best_individual, run_stats = run_evolution(run, env, config)
+            all_fitnesses[run] = run_fitnesses
+            best_individuals[run] = best_individual
+            list_run_stats.append(run_stats)
+            pbar_runs.update(1)
+
+    return all_fitnesses, best_individuals, list_run_stats
+
+def run_trial_in_subprocess(trial, conn, config, set_name, enemy_set, f_criterion=HP_FITNESS_CRITERION):
+    # Custom seeding
+    trial_seed = SEED + trial.number
+    np.random.seed(trial_seed)
+    random.seed(trial_seed)
 
     env = create_environment(set_name, enemy_set)
     
     all_fitnesses, _, _ = run_evolutions(env, config, HP_N_RUNS, pbar_pos=2+trial.number)
-    hp_fitness = float(criterion(all_fitnesses))
+    hp_fitness = float(f_criterion(all_fitnesses))
 
     if not isinstance(hp_fitness, (float, int)) or hp_fitness is None:
         raise ValueError(f"Invalid fitness value for trial {trial.number}: {hp_fitness}")
@@ -147,6 +168,11 @@ def run_trial_in_subprocess(trial, conn, config, set_name, enemy_set, criterion=
     if conn is not None:
         conn.send(hp_fitness)
         conn.close()
+
+def get_best_weights(all_fitnesses, best_individuals):
+    best_run_idx = all_fitnesses.max(axis=(1, 2)).argmax()
+    best_individual = best_individuals[best_run_idx]
+    return best_individual
 
 def hyperparameter_search(set_name, data_folder, enemy_set):
     # pbar = tqdm.tqdm(total=HP_N_TRIALS, desc='Hyperparameter search', unit='trial', position=1, leave=True)
@@ -172,34 +198,66 @@ def hyperparameter_search(set_name, data_folder, enemy_set):
             raise RuntimeError(f"Trial {trial.number} failed.")
         return hp_fitness
     
+    crit_name = HP_FITNESS_CRITERION.__name__
     study = optuna.create_study(direction='maximize', sampler=TPESampler())
     parallel = True if HP_PARALLEL_RUNS > 1 else False
     study.optimize(lambda trial: run_trial(trial, parallel), n_trials=HP_N_TRIALS, n_jobs=HP_PARALLEL_RUNS, gc_after_trial=True)
     df = study.trials_dataframe()
-    df.to_csv(os.path.join(data_folder, 'hp_trials_data.csv'), index=False)
+    df.to_csv(os.path.join(data_folder, f'hp_{crit_name}_trials_data.csv'), index=False)
 
     best_params = study.best_params
     sigma = best_params['sigma']
     population_size = best_params['pop_size']
     config = CMAESConfig(sigma=sigma, population_size=population_size)
     df = pd.DataFrame(best_params, index=[0])
-    df.to_csv(os.path.join(data_folder, 'hp_best_params.csv'), index=False)
+    df.to_csv(os.path.join(data_folder, f'hp_{crit_name}_best_params.csv'), index=False)
 
     return config
 
 if __name__ == '__main__':
-    data_folders = [os.path.join('data', 'cmaes', f'{ENEMY_SETS[key]}') for key in ENEMY_SETS.keys()]
+    # Setup
+    set_names, enemy_sets = zip(*ENEMY_SETS.items())
+    data_folders = [os.path.join('data', 'cmaes', f'{set_name}', f'hp_{HP_FITNESS_CRITERION.__name__}') for set_name in set_names]
     for folder in data_folders:
         os.makedirs(folder, exist_ok=True)
-    set_names, enemy_sets = zip(*ENEMY_SETS.items())
+    
+    # Core
     for name, folder, enemy_set in zip(set_names, data_folders, enemy_sets):
         if '--tune' in sys.argv:
-            hyperparameter_search(name, folder, enemy_set)
-        if '--run' in sys.argv:
-            env = create_environment(name, enemy_set)
+            print('Generating hyperparameter values through tuning...')
+            config = hyperparameter_search(name, folder, enemy_set)
+        elif '--load' in sys.argv:
+            print('Loading hyperparameter values from file...')
+            try:
+                with open(os.path.join(folder, f'hp_best_params.csv'), 'r') as f:
+                    df = pd.read_csv(f)
+                    config = CMAESConfig(sigma=df['sigma'].values[0], population_size=df['pop_size'].values[0])
+            except FileNotFoundError:
+                print(f"File not found. You likely have not run tuning with {HP_FITNESS_CRITERION.__name__}.")
+                sys.exit(1)
+        else:
+            print('Using hard-coded hyperparameter values in script.')
             config = CMAESConfig(sigma=SIGMA, population_size=POPULATION_SIZE)
-            all_fitnesses, best_individuals, df_stats = run_evolutions(env, config, n_runs=N_RUNS)
-            df_stats.to_csv(os.path.join(folder, 'cmaes_stats.csv'), index=False)
-            np.save(os.path.join(folder, 'cmaes_all_fitnesses.npy'), all_fitnesses)
-            np.save(os.path.join(folder, 'cmaes_best_individuals.npy'), best_individuals)
-            print(f"Results saved to {folder}")
+
+        print(config)
+
+        if '--train' in sys.argv:
+            print(f'Training the ideal controller from {N_RUNS} evolutions...')
+            env = create_environment(name, enemy_set)
+            all_fitnesses, best_individuals, list_df_stats = run_evolutions(env, config, n_runs=N_RUNS)
+            np.save(os.path.join(folder, 'train_all_fitnesses.npy'), all_fitnesses)
+            np.save(os.path.join(folder, 'train_best_individuals.npy'), best_individuals)
+            for run, best_individual in enumerate(best_individuals):
+                with open(os.path.join(folder, f"train_stats_run{run + 1}.csv"), 'w') as f:
+                    list_df_stats[run].to_csv(f, index=False)
+
+        if '--show' in sys.argv:
+            print('Showcasing the best generalist...')
+            env = create_environment(name, enemy_set, visuals=True)
+            env.speed = 'normal'
+            all_fitnesses = np.load(os.path.join(folder, 'train_all_fitnesses.npy'))
+            best_individuals = np.load(os.path.join(folder, 'train_best_individuals.npy'))
+            best_weights = get_best_weights(all_fitnesses, best_individuals)
+            env.player_controller.set_weights(best_weights, NUM_HIDDEN)
+            agg_fit, _, _, _ = env.play()
+            print(f"Fit = {agg_fit}")

@@ -38,7 +38,7 @@ for (i, enemy) in enumerate(ENEMIES):
                     enemies=[enemy],
                     multiplemode="no",
                     playermode="ai",
-                    player_controller=controller_neat(),
+                    player_controller=controller_neat(log_history=True),
                     savelogs="no",
                     enemymode="static",
                     level=2,

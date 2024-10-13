@@ -2,8 +2,9 @@ from evoman.environment import Environment
 from evoman.controller import Controller
 
 class controller_neat(Controller):
-	def __init__(self):
+	def __init__(self, log_history=False):
 		self.decision_history = []
+		self.log_history = log_history
 
 	def reset_history(self):
 		self.decision_history = []
@@ -33,6 +34,8 @@ class controller_neat(Controller):
 			release = 1
 
 		decision = [left, right, jump, shoot, release]
-		self.decision_history.append(decision + [left or right] + [jump or release])
+		
+		if self.log_history:
+			self.decision_history.append(decision + [left or right] + [jump or release])
 		
 		return decision

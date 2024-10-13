@@ -136,7 +136,7 @@ if __name__ == '__main__':
                             savelogs="no",
                             timeexpire=3000,
                             clockprec="low",
-                            player_controller=controller_cmaes(),
+                            player_controller=controller_cmaes(log_history=True),
                             visuals=False) for enemy in ENEMIES]
     
     # Number of runs for training, testing and tuning

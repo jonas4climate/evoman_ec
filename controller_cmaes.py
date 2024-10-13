@@ -2,8 +2,10 @@ import numpy as np
 from evoman.controller import Controller
 
 class controller_cmaes(Controller):
-    def __init__(self):
+    def __init__(self, log_history=False):
         self.weights = None
+        self.decision_history = []
+        self.log_history = log_history
 
     def set_weights(self, weights, n_hidden):
         self.weights = weights
@@ -28,6 +30,9 @@ class controller_cmaes(Controller):
 
     def sigmoid(self, x):
         return 1 / (1 + np.exp(-x))
+    
+    def reset_history(self):
+        self.decision_history = []
 
     def control(self, inputs, controller):
         assert self.weights is not None, "Weights have not been set."
@@ -49,5 +54,8 @@ class controller_cmaes(Controller):
         release = 1 if output[4] > 0 else 0
 
         decision = [left, right, jump, shoot, release]
+        
+        if self.log_history:
+            self.decision_history.append(decision + [left or right] + [jump or release])
 
         return decision
