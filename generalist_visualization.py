@@ -1,9 +1,9 @@
 import os
 import numpy as np
 
-from generalist_optimization_test import create_environment, NUM_HIDDEN, N_RUNS
-from generalist_optimization_test import EXP_NAME_1, DATA_FOLDER_1
-from generalist_optimization_test import EXP_NAME_2, DATA_FOLDER_2
+from generalist_optimization import create_environment, NUM_HIDDEN, N_RUNS
+from generalist_optimization import EXP_NAME_1, DATA_FOLDER_1
+from generalist_optimization import EXP_NAME_2, DATA_FOLDER_2
 
 ALL_ENEMIES = range(1, 9)
 
