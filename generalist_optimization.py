@@ -5,6 +5,7 @@ import multiprocessing
 import tqdm
 import numpy as np
 import pandas as pd
+import time
 
 import optuna
 from optuna.samplers import TPESampler
@@ -27,9 +28,9 @@ N_RUNS = 5
 HOF_SIZE = 1
 
 ## Hyperparameters for CMA-ES
-POPULATION_SIZE = 100 # (tune-able)
+POPULATION_SIZE = 10 # (tune-able) # TODO: CHANGE
 SIGMA = 2.5 # (tune-able)
-NGEN = 200 # (not tune-able)
+NGEN = 100 # (not tune-able) # TODO: CHANGE
 
 ## Hyperparameter search parameters
 HP_POP_SIZE_RANGE = (10, 200)
@@ -102,6 +103,7 @@ def setup_data_collector():
 def run_evolutions(env, config, n_runs=1, pbar_pos=2, parallel=False):
     N = 21 * NUM_HIDDEN + (NUM_HIDDEN + 1) * 5
     all_fitnesses = np.zeros((n_runs, NGEN, config.population_size))
+    all_times_elapsed = np.zeros((n_runs, NGEN))
     best_individuals = np.zeros((n_runs, N))
     list_run_stats = []
 
@@ -114,6 +116,7 @@ def run_evolutions(env, config, n_runs=1, pbar_pos=2, parallel=False):
         random.seed(run_seed)
 
         run_fitnesses = np.zeros((NGEN, config.population_size))
+        run_time_elapsed = np.zeros(NGEN)
 
         toolbox = setup_toolbox(N, env, config)
         population = toolbox.population(n=config.population_size)
@@ -123,33 +126,51 @@ def run_evolutions(env, config, n_runs=1, pbar_pos=2, parallel=False):
         logbook.header = ['gen', 'nevals'] + stats.fields
 
         for gen in range(NGEN):
+            # Time at the start of the generation
+            start_time = time.time()
+
+            # Main EA logic
             population = toolbox.generate()
             fitnesses = list(map(toolbox.evaluate, population))
             for ind, fit in zip(population, fitnesses):
                 ind.fitness.values = fit
             toolbox.update(population)
             hof.update(population)
+
+            # Time elapsed for the generation
+            time_elapsed = time.time() - start_time
+
+            # Data gathering
             record = stats.compile(population)
             logbook.record(gen=gen, nevals=len(population), **record)
+
             run_fitnesses[gen] = [ind.fitness.values[0] for ind in population]
+            run_time_elapsed[gen] = time_elapsed
+
+            # Update progress bar
             pbar_gens.update(1)
 
         best_individual = hof[0]
         run_stats = pd.DataFrame(logbook)
-        return run_fitnesses, best_individual, run_stats
+        return run_fitnesses, best_individual, run_stats, time_elapsed
 
     if parallel:
         raise NotImplementedError("Haven't figured this out yet.")
     else:
         pbar_runs = tqdm.tqdm(total=n_runs, desc='Runs', unit='run', position=pbar_pos)
         for run in range(n_runs):
-            run_fitnesses, best_individual, run_stats = run_evolution(run, env, config)
+            # A single run
+            run_fitnesses, best_individual, run_stats, time_elapsed = run_evolution(run, env, config)
+
+            # Data gathering
             all_fitnesses[run] = run_fitnesses
+            all_times_elapsed[run] = time_elapsed
             best_individuals[run] = best_individual
+
             list_run_stats.append(run_stats)
             pbar_runs.update(1)
 
-    return all_fitnesses, best_individuals, list_run_stats
+    return all_fitnesses, all_times_elapsed, best_individuals, list_run_stats
 
 def run_trial_in_subprocess(trial, conn, config, set_name, enemy_set, f_criterion=HP_FITNESS_CRITERION):
     # Custom seeding
@@ -159,7 +180,7 @@ def run_trial_in_subprocess(trial, conn, config, set_name, enemy_set, f_criterio
 
     env = create_environment(set_name, enemy_set)
     
-    all_fitnesses, _, _ = run_evolutions(env, config, HP_N_RUNS, pbar_pos=2+trial.number)
+    all_fitnesses, _, _, _ = run_evolutions(env, config, HP_N_RUNS, pbar_pos=2+trial.number)
     hp_fitness = float(f_criterion(all_fitnesses))
 
     if not isinstance(hp_fitness, (float, int)) or hp_fitness is None:
@@ -244,8 +265,9 @@ if __name__ == '__main__':
         if '--train' in sys.argv:
             print(f'Training the ideal controller from {N_RUNS} evolutions...')
             env = create_environment(name, enemy_set)
-            all_fitnesses, best_individuals, list_df_stats = run_evolutions(env, config, n_runs=N_RUNS)
+            all_fitnesses, all_times_elapsed, best_individuals, list_df_stats = run_evolutions(env, config, n_runs=N_RUNS)
             np.save(os.path.join(folder, 'train_all_fitnesses.npy'), all_fitnesses)
+            np.save(os.path.join(folder, 'train_all_times_elapsed.npy'), all_times_elapsed)
             np.save(os.path.join(folder, 'train_best_individuals.npy'), best_individuals)
             for run, best_individual in enumerate(best_individuals):
                 with open(os.path.join(folder, f"train_stats_run{run + 1}.csv"), 'w') as f:
