@@ -1,10 +1,11 @@
 """
 TODO:
-- Chanage topology
-- Wait for optimization
-- Increase topology step by step
-- Save current state as checkpoint: see https://neat-python.readthedocs.io/en/latest/module_summaries.html#checkpoint
-- 
+- make something better than the checkpoints list currently using
+- make sure that the loading of population is working
+- try out the --test option ?
+- hyperparameter optimization 
+    - I think mainly node_add_prob is interesting + parameters that are similar to what is used in CMA?
+- keeping track of time per generation (or at least extract that data) + improvement of fitness for "computational efficiency"
 """
 
 import os
@@ -38,6 +39,12 @@ FITNESS_ALPHA = 0.25
 GEN_INTERVAL_LOG = 10
 NGEN = 100 # TODO: make larger in practice
 
+global checkpoints
+# ADJUST THIS WHEN STARTING FROM A CHECKPOINT; REMOVE POINTS THAT ARE ALREADY THERE
+# so we make a checkpoint when some genome has n_nodes 5, 10, 50 etc
+checkpoints =  [5, 10, 50, 100, 150, 200, 250, 300]
+
+# not using this currently
 MAXIMUM_COMPLEXITY = 11 # Maximum number of nodes in hidden layer
 CURRENT_COMPLEXITY = 1
 
@@ -66,25 +73,47 @@ def eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data,
     fitnesses = []
     n_nodes = []
     n_weights = []
+    best_network = None
+    max_fitness = - np.inf
     for id, genome in genomes:    
         # create a NN based on the genome provided
         net = neat.nn.FeedForwardNetwork.create(genome, config)     # TODO: Load this network from the previous checkpoint
         num_nodes = len(net.node_evals)
         fitness = evaluate_individual(id, net, env) # Calculate fitness based on network's success
         genome.fitness = fitness  # Assign fitness to genome
-        fitnesses.append(genome.fitness)
+        # keep track of highest fitness and best genome 
+        if fitness > max_fitness:
+            max_fitness = fitness
+            best_network = net
+
+        fitnesses.append(genome.fitness) # To keep track of fitness
         n_weights.append(len(genome.connections))
         n_nodes.append(num_nodes)
+
         if num_nodes in checkpoints:
+            print(f" One of the networks has reached the desired network size ({num_nodes}), saving population as checkpoint!")
+
+            # making some folders to be able to store data in proper place
             game_folder = os.path.join(DATA_FOLDER, str(name))
             os.makedirs(game_folder, exist_ok=True)
             checkpoint_folder = os.path.join(game_folder, str(num_nodes))
             os.makedirs(checkpoint_folder, exist_ok=True)
             checkpointer.filename_prefix = f'{checkpoint_folder}\\'
-            print("One of the networks has reached the desired network size, saving population as checkpoint!")
+
+            
+            # making checkpoint saving the entire population
             checkpointer.save_checkpoint(config= config, population=p, species_set=None, generation=p.generation)
-            max_fitness = max(fitnesses)
-            np.save(os.path.join(checkpoint_folder, f'max_fitnesses_{num_nodes}.npy'), max_fitness)
+
+            # saving the best fitness in a txt file
+            best_fitness_path = f'{checkpoint_folder}\\{num_nodes}-best_fitness.txt'
+            with open(best_fitness_path, 'w') as f:
+                f.write(f"Best Fitness: {max_fitness}")
+
+            # savng the best network to be able to test it if wanted
+            best_network_path = f'{checkpoint_folder}\\{num_nodes}-best_network.pkl'
+            with open(best_network_path, 'wb') as f:
+                pickle.dump(best_network, f)
+            
             checkpoints.remove(num_nodes)
             
 
@@ -95,6 +124,8 @@ def eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data,
     max_fitness = max(fitnesses)
     mean_fitness = np.mean(fitnesses)
     std_fitness = np.std(fitnesses)
+
+        # network starts with size 6 since we have 6 outputs I think
 
         # RN the entire population is saved as checkpoint (so the genomes at that point), when one of the genomes has reached network size in the checkpoint lists
         # also save the best fitness up untill that point
@@ -117,7 +148,7 @@ def evaluate_individual(id, network, env):
 
 
 
-def run_evolutions(n_runs, name, load_checkpoint, path_checkpoint):
+def run_evolutions(n_runs, name, load_checkpoint, path_checkpoint_set1, path_checkpoint_set2):
     # Find out pop size
     config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                             neat.DefaultSpeciesSet, neat.DefaultStagnation,
@@ -148,7 +179,10 @@ def run_evolutions(n_runs, name, load_checkpoint, path_checkpoint):
         # Create the population, which is the top-level object for a NEAT run.
         global p
         if load_checkpoint == True:
-            p = neat.Checkpointer.restore_checkpoint(path_checkpoint)
+            if name == 'set_1':
+                p = neat.Checkpointer.restore_checkpoint(path_checkpoint_set1)
+            elif name == 'set_2':
+                p = neat.Checkpointer.restore_checkpoint(path_checkpoint_set2)
         else: 
             p = neat.Population(config)
 
@@ -159,12 +193,7 @@ def run_evolutions(n_runs, name, load_checkpoint, path_checkpoint):
 
         global checkpointer
         checkpointer = neat.Checkpointer()
-        global checkpoints
-
-        # ADJUST THIS WHEN STARTING FROM A CHECKPOINT; REMOVE POINTS THAT ARE ALREADY THERE
-        checkpoints =  [10, 50, 100, 150, 200, 250, 300]
-
-
+        
         winner = p.run(lambda genomes, config: eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data, n_weights_data, pbar_gens, checkpoints, name), NGEN)
 
         # Save data
@@ -204,15 +233,18 @@ if __name__ == '__main__':
         if '--train' in sys.argv:
                 if '--load_checkpoint' in sys.argv:
                     load_checkpoint = True
-                    if '--checkpoint_path' in sys.argv:
-                        checkpoint_path = sys.argv[sys.argv.index('--checkpoint_path') + 1]
+                    if '--checkpoint_path_set1' in sys.argv:
+                        checkpoint_path_set1 = sys.argv[sys.argv.index('--checkpoint_path_set1') + 1]
+                    if '--checkpoint_path_set2' in sys.argv:
+                        checkpoint_path_set2 = sys.argv[sys.argv.index('--checkpoint_path_set2') + 1]
                         env = create_environment(name, enemy_set)
-                        run_evolutions(n_runs, name, load_checkpoint, checkpoint_path)
+                        run_evolutions(n_runs, name, load_checkpoint, checkpoint_path_set1, checkpoint_path_set2)
                 else:
                     load_checkpoint = False
-                    checkpoint_path = None
+                    checkpoint_path_set1 = None
+                    checkpoint_path_set2 = None
                     env = create_environment(name, enemy_set)
-                    run_evolutions(n_runs, name, load_checkpoint, checkpoint_path)
+                    run_evolutions(n_runs, name, load_checkpoint, checkpoint_path_set1, checkpoint_path_set2)
 
         if '--test' in sys.argv:
             gains = np.zeros(n_repeats * n_runs)
