@@ -1,5 +1,3 @@
-
-
 def crit_mean_of_max(all_fitnesses):
     return all_fitnesses.max(axis=(1, 2)).mean()
 
