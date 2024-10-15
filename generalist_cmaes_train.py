@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 
 from deap import base, creator, tools, cma
-from evoman.environment import Environment
 from controller_cmaes import controller_cmaes
+from generalist_shared import create_environment
 
 # Use configuration unless specified otherwise
 from generalist_cmaes_config import *
@@ -45,25 +45,6 @@ def evaluate_fitness(individual, environment):
     agg_fitness, _, _, _ = environment.play()
     return agg_fitness,
 
-def create_environment(experiment_name, enemy_set, visuals=False):
-    """Returns an Environment object for the Evoman framework.
-    Args:
-        experiment_name (string): name of the experiment, used for logging
-        enemy_set (List[int]): list with enemies to train on
-        visuals (bool, optional): Whether to display environment to the screen. Defaults to False.
-    Returns:
-        Environment: Environment object representing the the Evoman instance
-    """
-    return Environment(experiment_name=experiment_name,
-                        enemies=enemy_set,
-                        multiplemode="yes",
-                        enemymode='static',
-                        speed='normal' if visuals else 'fastest',
-                        player_controller=controller_cmaes(),
-                        savelogs="no",
-                        logs="off",
-                        clockprec="low",
-                        visuals=visuals)
 
 def setup_toolbox(N, env, config):
     """Helper function for setting up toolbox (setup) from the Deap package.
@@ -221,10 +202,10 @@ def load_hyperparameters():
 
     return config
 
-def train(config):
+def train(config, controller=controller_cmaes):
     print(f'Training the ideal controller from {N_RUNS} evolutions...')
     # Create the environment
-    env = create_environment(name, enemy_set)
+    env = create_environment(name, enemy_set, controller)
     # Run evolution
     all_fitnesses, best_individuals, list_df_stats = run_evolutions(env, config, n_runs=N_RUNS)
 

@@ -3,7 +3,8 @@ import numpy as np
 
 # Use configuration unless specified otherwise
 from generalist_cmaes_config import *
-from generalist_cmaes_train import create_environment
+from generalist_shared import create_environment
+from controller_cmaes import controller_cmaes
 
 np.random.seed(SEED)
 
@@ -28,11 +29,16 @@ if __name__ == '__main__':
     # Core
     for name, folder, enemy_set in zip(set_names, data_folders, enemy_sets):
         print('Showcasing the best generalist...')
-        env = create_environment(name, enemy_set, visuals=True)
+        # Set up environment
+        env = create_environment(name, enemy_set, controller_cmaes, visuals=True)
         env.speed = 'normal'
+
+        # Load data and select best weights
         all_fitnesses = np.load(os.path.join(folder, 'train_all_fitnesses.npy'))
         best_individuals = np.load(os.path.join(folder, 'train_best_individuals.npy'))
         best_weights = get_best_weights(all_fitnesses, best_individuals)
+
+        # Set weights and play
         env.player_controller.set_weights(best_weights, NUM_HIDDEN)
         agg_fit, _, _, _ = env.play()
         print(f"Fit = {agg_fit}")

@@ -19,6 +19,7 @@ import tqdm
 
 from evoman.environment import Environment
 from controller_neat import controller_neat
+from generalist_shared import create_environment
 
 EXP_NAME = 'neat_generalist'
 DATA_FOLDER = os.path.join('data', EXP_NAME)
@@ -54,18 +55,6 @@ np.random.seed(SEED)
 os.makedirs(DATA_FOLDER, exist_ok=True)
 
 generation = 0
-
-def create_environment(experiment_name, enemy_set, visuals=False):
-    return Environment(experiment_name=experiment_name,
-                        enemies=enemy_set,
-                        multiplemode="yes",
-                        enemymode='static',
-                        speed='normal' if visuals else 'fastest',
-                        player_controller=controller_neat(),
-                        savelogs="no",
-                        logs="off",
-                        clockprec="low",
-                        visuals=visuals)
 
 def eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data, n_weights_data, pbar_gens, checkpoints, name):        
     global generation
@@ -237,13 +226,13 @@ if __name__ == '__main__':
                         checkpoint_path_set1 = sys.argv[sys.argv.index('--checkpoint_path_set1') + 1]
                     if '--checkpoint_path_set2' in sys.argv:
                         checkpoint_path_set2 = sys.argv[sys.argv.index('--checkpoint_path_set2') + 1]
-                        env = create_environment(name, enemy_set)
+                        env = create_environment(name, enemy_set, controller_neat)
                         run_evolutions(n_runs, name, load_checkpoint, checkpoint_path_set1, checkpoint_path_set2)
                 else:
                     load_checkpoint = False
                     checkpoint_path_set1 = None
                     checkpoint_path_set2 = None
-                    env = create_environment(name, enemy_set)
+                    env = create_environment(name, enemy_set, controller_neat)
                     run_evolutions(n_runs, name, load_checkpoint, checkpoint_path_set1, checkpoint_path_set2)
 
         if '--test' in sys.argv:
