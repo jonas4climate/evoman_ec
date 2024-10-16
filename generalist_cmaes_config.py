@@ -1,6 +1,8 @@
 ## Configuration file
 
 from criterions import * 
+from controller_cmaes import controller_cmaes
+from demo_controller import player_controller
 import os
 
 # Two groups of enemies
@@ -28,6 +30,7 @@ HP_FITNESS_CRITERION = crit_mean_of_max # Fitness criterion applied to fitness m
 
 ## Controller parameters
 NUM_HIDDEN = 10  # Number of hidden layer neurons
+CONTROLLER = controller_cmaes
 
 ## Seed for reproducibility
 SEED = 42

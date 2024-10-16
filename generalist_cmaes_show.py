@@ -4,7 +4,6 @@ import numpy as np
 # Use configuration unless specified otherwise
 from generalist_cmaes_config import *
 from generalist_shared import create_environment
-from controller_cmaes import controller_cmaes
 
 np.random.seed(SEED)
 
@@ -30,7 +29,7 @@ if __name__ == '__main__':
     for name, folder, enemy_set in zip(set_names, data_folders, enemy_sets):
         print('Showcasing the best generalist...')
         # Set up environment
-        env = create_environment(name, enemy_set, controller_cmaes, visuals=True)
+        env = create_environment(name, enemy_set, CONTROLLER, visuals=True)
         env.speed = 'normal'
 
         # Load data and select best weights
