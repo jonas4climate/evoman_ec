@@ -10,7 +10,6 @@ TODO:
 
 import os
 import sys
-
 import neat
 import pandas as pd
 import numpy as np
@@ -102,7 +101,7 @@ def run_evolutions(env, name, n_runs=N_RUNS):
 
     pbar_gens = tqdm.tqdm(total=n_runs*NGEN, desc=f'Training generalist against enemies {name}', unit='gen', position=1)
         
-    COMPLEXITY_INDEX = 1
+    # COMPLEXITY_INDEX = 1
 
     for run in range(n_runs):
         stats_data = []

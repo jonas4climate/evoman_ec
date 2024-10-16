@@ -1,11 +1,7 @@
 import os
-import sys
-
 import neat
-import pandas as pd
 import numpy as np
 import pickle
-import tqdm
 
 from generalist_shared import create_environment
 
