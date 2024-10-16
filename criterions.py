@@ -1,8 +1,10 @@
+import numpy as np
+
 def crit_mean_of_max(all_fitnesses):
-    return all_fitnesses.max(axis=(1, 2)).mean()
+    return np.nanmean(np.nanmax(all_fitnesses, axis=(1, 2)))
 
 def crit_mean(all_fitnesses):
-    return all_fitnesses.mean()
+    return np.nanmean(all_fitnesses)
 
 def crit_max(all_fitnesses):
-    return all_fitnesses.max()
+    return np.nanmax(all_fitnesses)
