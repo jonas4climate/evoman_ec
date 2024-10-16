@@ -2,6 +2,7 @@ import os
 import random
 import pandas as pd
 import numpy as np
+import configparser
 import neat
 import time
 import multiprocessing
@@ -57,6 +58,26 @@ def run_trial_in_subprocess(trial, conn, config, set_name, enemy_set, f_criterio
         conn.send(hp_fitness)
         conn.close()
 
+def write_config_to_file(best_params, data_folder):
+    config = HP_RANGES.copy()
+    for hparam in HP_RANGES.keys():
+        section, option = hparam.split('.')
+        config[hparam] = best_params[option]
+
+    print(f'\n\nBest hyperparameter subset for {name}: {config}\n\n')
+
+    config_parser = configparser.ConfigParser()
+    config_parser.read(CONFIG_PATH)
+
+    for hparam, value in config.items():
+        section, option = hparam.split('.')
+        if section not in config_parser:
+            config_parser.add_section(section)
+        config_parser.set(section, option, str(value))
+
+    with open(os.path.join(data_folder, HP_CONFIG_FILE_NAME), 'w') as f:
+        config_parser.write(f)
+
 def hyperparameter_search(set_name, data_folder, enemy_set):
     """Function for running hyperparameter tuning for CMA-ES on the given environment set.
     By default running separate instances of the game in parallel according to `HP_PARALLEL_RUNS`.
@@ -80,10 +101,11 @@ def hyperparameter_search(set_name, data_folder, enemy_set):
         trial_hp_dict = HP_RANGES.copy()
         # Get hyperparameter suggestion from hyperparameter optimizer 
         for hparam, (low, high) in HP_RANGES.items():
+            section, option = hparam.split('.')
             if isinstance(low, int) and isinstance(high, int):
-                trial_hp_dict[hparam] = trial.suggest_int(hparam, low, high)
+                trial_hp_dict[option] = trial.suggest_int(option, low, high)
             elif isinstance(low, float) and isinstance(high, float):
-                trial_hp_dict[hparam] = trial.suggest_float(hparam, low, high)
+                trial_hp_dict[option] = trial.suggest_float(option, low, high)
             else:
                 raise ValueError(f"Invalid hyperparameter types for {hparam}: {low}, {high} are unsupported")
             
@@ -91,6 +113,7 @@ def hyperparameter_search(set_name, data_folder, enemy_set):
         config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                             neat.DefaultSpeciesSet, neat.DefaultStagnation,
                             CONFIG_PATH)
+        
         # Overwrite with hyperparameter trial values
         for key, value in trial_hp_dict.items():
             setattr(config, key, value)
@@ -133,25 +156,8 @@ def hyperparameter_search(set_name, data_folder, enemy_set):
     df = pd.DataFrame(best_params, index=[0])
     df.to_csv(os.path.join(data_folder, f'hp_best_params.csv'), index=False)
 
-    # Get best hyperparameters
-    config = HP_RANGES.copy()
-    for hparam in HP_RANGES.keys():
-        config[hparam] = best_params[hparam]
-
-    # # Save the best hyperparameters to a .ini file
-    # config_parser = configparser.ConfigParser()
-    # config_parser.read(CONFIG_PATH)
-
-    # for hparam, value in best_params.items():
-    #     section, option = hparam.split('.')
-    #     if section not in config_parser:
-    #         config_parser.add_section(section)
-    #     config_parser.set(section, option, str(value))
-
-    # with open(os.path.join(data_folder, 'hp_best_neat_config.ini'), 'w') as configfile:
-    #     config_parser.write(configfile)
-
-    return config
+    # Save the best hyperparameters to a .ini file
+    write_config_to_file(best_params, data_folder)
 
 if __name__ == '__main__':
     # Setup
@@ -163,5 +169,4 @@ if __name__ == '__main__':
     # Core
     for name, folder, enemy_set in zip(set_names, data_folders, enemy_sets):
         print(f'Generating hyperparameter values through tuning for enemy set {name}...\n\n')
-        config = hyperparameter_search(name, folder, enemy_set)
-        print(f'\n\nBest hyperparameters for {name}: {config}\n\n')
+        hyperparameter_search(name, folder, enemy_set)
