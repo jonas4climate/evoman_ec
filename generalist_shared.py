@@ -20,5 +20,4 @@ def create_environment(experiment_name, enemy_set, controller, visuals=False):
                         logs="off",
                         clockprec="low",
                         visuals=visuals)
-    
     return env

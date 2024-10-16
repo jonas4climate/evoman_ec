@@ -135,7 +135,7 @@ def run_evolutions(env, config, n_runs=1, pbar_pos=2, parallel=False):
         logbook = tools.Logbook()
         logbook.header = ['gen', 'nevals'] + stats.fields
 
-        # Main loop running across all generations
+        # Main loop running across all generations, stopping criterion is NGEN
         for gen in range(NGEN):
             # Generate new population and evaluate fitness
             population = toolbox.generate()

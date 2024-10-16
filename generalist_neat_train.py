@@ -45,10 +45,7 @@ np.random.seed(SEED)
 
 os.makedirs(DATA_FOLDER, exist_ok=True)
 
-generation = 0
-
-def eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data, n_weights_data, pbar_gens):        
-    global generation
+def eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data, n_weights_data, pbar_gens, generation):        
     fitnesses = []
     n_nodes = []
     n_weights = []
@@ -65,7 +62,6 @@ def eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data,
             max_fitness = fitness
             best_network = net
             best_id = id
-            print(f"In this generation the best network has {len(best_network.node_evals)} nodes. ID {best_id}. Fitness {max_fitness}")
 
         fitnesses.append(genome.fitness) # To keep track of fitness
         n_weights.append(len(genome.connections))
@@ -82,16 +78,13 @@ def eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data,
     
     row_data = [generation, max_fitness, mean_fitness, std_fitness]
     stats_data.append(row_data)
-    generation += 1
+
+    # print(f"In this generation the best network has {len(best_network.node_evals)} nodes. ID {best_id}. Fitness {max_fitness}")
     pbar_gens.update(1)
 
 def evaluate_individual(id, network, env):
-    _, player_life, enemy_life, time = env.play(pcont=network)
-    # adjusting the built-in fitness function 
-    fitness_custom = FITNESS_GAMMA * (100 - enemy_life) + FITNESS_ALPHA * player_life - np.log(time + 0.000001)
-    return fitness_custom
-
-
+    agg_fit, p_life, e_life, time = env.play(pcont=network)
+    return agg_fit
 
 def run_evolutions(n_runs, name):
     # Find out pop size
@@ -110,9 +103,6 @@ def run_evolutions(n_runs, name):
     COMPLEXITY_INDEX = 1
 
     for run in range(n_runs):
-        global generation
-        generation = 0
-
         stats_data = []
 
         # Load configuration.
@@ -128,8 +118,8 @@ def run_evolutions(n_runs, name):
         stats = neat.StatisticsReporter()
         p.add_reporter(stats)
         p.add_reporter(neat.StdOutReporter(True))
-        
-        winner = p.run(lambda genomes, config: eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data, n_weights_data, pbar_gens), NGEN)
+        f_fitness = lambda genomes, config: eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data, n_weights_data, pbar_gens, p.generation)
+        winner = p.run(f_fitness, NGEN)
 
         # Save data
         os.makedirs(game_folder, exist_ok=True)
