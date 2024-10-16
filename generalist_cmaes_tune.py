@@ -11,7 +11,6 @@ from deap import base, creator
 
 # Use configuration unless specified otherwise
 from generalist_cmaes_config import *
-from controller_cmaes import controller_cmaes
 from generalist_shared import create_environment
 from generalist_cmaes_train import CMAESConfig, run_evolutions
 
@@ -43,7 +42,7 @@ def run_trial_in_subprocess(trial, conn, config, set_name, enemy_set, f_criterio
     random.seed(trial_seed)
 
     # Create environment
-    env = create_environment(set_name, enemy_set, controller_cmaes)
+    env = create_environment(set_name, enemy_set, CONTROLLER)
     
     # Run evolution
     all_fitnesses, _, _ = run_evolutions(env, config, HP_N_RUNS, pbar_pos=2+trial.number)

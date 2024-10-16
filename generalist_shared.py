@@ -1,4 +1,5 @@
 from evoman.environment import Environment
+import numpy as np
 
 def create_environment(experiment_name, enemy_set, controller, visuals=False):
     """Returns an Environment object for the Evoman framework.
@@ -9,7 +10,7 @@ def create_environment(experiment_name, enemy_set, controller, visuals=False):
     Returns:
         Environment: Environment object representing the the Evoman instance
     """
-    return Environment(experiment_name=experiment_name,
+    env = Environment(experiment_name=experiment_name,
                         enemies=enemy_set,
                         multiplemode="yes",
                         enemymode='static',
@@ -19,3 +20,5 @@ def create_environment(experiment_name, enemy_set, controller, visuals=False):
                         logs="off",
                         clockprec="low",
                         visuals=visuals)
+    
+    return env

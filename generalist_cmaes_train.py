@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 
 from deap import base, creator, tools, cma
-from controller_cmaes import controller_cmaes
 from generalist_shared import create_environment
 
 # Use configuration unless specified otherwise
@@ -42,7 +41,7 @@ def evaluate_fitness(individual, environment):
     environment.player_controller.set_weights(individual, NUM_HIDDEN)
 
     # Run the game against all opponents and return default aggregated fitness
-    agg_fitness, _, _, _ = environment.play()
+    agg_fitness, p_life, e_life, time = environment.play()
     return agg_fitness,
 
 
@@ -202,7 +201,7 @@ def load_hyperparameters():
 
     return config
 
-def train(config, controller=controller_cmaes):
+def train(config, controller=CONTROLLER):
     print(f'Training the ideal controller from {N_RUNS} evolutions...')
     # Create the environment
     env = create_environment(name, enemy_set, controller)
