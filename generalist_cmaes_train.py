@@ -201,7 +201,7 @@ def load_hyperparameters():
 
     return config
 
-def train(config, controller=CONTROLLER):
+def train(config, name, folder, enemy_set, controller=CONTROLLER):
     print(f'Training the ideal controller from {N_RUNS} evolutions...')
     # Create the environment
     env = create_environment(name, enemy_set, controller)
@@ -227,4 +227,4 @@ if __name__ == '__main__':
     # Core
     for name, folder, enemy_set in zip(set_names, data_folders, enemy_sets):
         config = load_hyperparameters()
-        train(config)
+        train(config, name, folder, enemy_set)

@@ -26,6 +26,8 @@ DATA_FOLDER = os.path.join('data', EXP_NAME)
 ENEMY_MODE = 'static'
 CONFIG_PATH = os.path.join('neat-config-feedforward.ini')
 
+CONTROLLER = controller_neat
+
 
 # Two groups of enemies
 ENEMY_SETS = {
@@ -45,7 +47,7 @@ np.random.seed(SEED)
 
 os.makedirs(DATA_FOLDER, exist_ok=True)
 
-def eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data, n_weights_data, pbar_gens, generation):        
+def eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data, n_weights_data, pbar_gens, generation, env):        
     fitnesses = []
     n_nodes = []
     n_weights = []
@@ -86,19 +88,19 @@ def evaluate_individual(id, network, env):
     agg_fit, p_life, e_life, time = env.play(pcont=network)
     return agg_fit
 
-def run_evolutions(n_runs, name):
+def run_evolutions(env, name, n_runs):
     # Find out pop size
     config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                             neat.DefaultSpeciesSet, neat.DefaultStagnation,
                             CONFIG_PATH)
     pop_size = int(config.pop_size * 2.0) # 100% margin for growth
-    fitnesses_data = np.full((n_runs, NGEN, pop_size), np.nan)
+    all_fitnesses = np.full((n_runs, NGEN, pop_size), np.nan)
     n_nodes_data = np.full((n_runs, NGEN, pop_size), np.nan)
     n_weights_data = np.full((n_runs, NGEN, pop_size), np.nan)
+    best_individuals = []
+    list_df_stats = []
 
-    game_folder = os.path.join(DATA_FOLDER, str(name))
     pbar_gens = tqdm.tqdm(total=n_runs*NGEN, desc=f'Training generalist against enemies {name}', unit='gen', position=1)
-
         
     COMPLEXITY_INDEX = 1
 
@@ -106,46 +108,59 @@ def run_evolutions(n_runs, name):
         stats_data = []
 
         # Load configuration.
-        
         config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                                 neat.DefaultSpeciesSet, neat.DefaultStagnation,
                                 CONFIG_PATH)
             
-        # Create the population, which is the top-level object for a NEAT run.
+        # Create population (top-level object for a NEAT run) and fitness function
         p = neat.Population(config)
 
-        # Add a stdout reporter to show progress in the terminal.
+        # Statistic gathering and output
         stats = neat.StatisticsReporter()
         p.add_reporter(stats)
         p.add_reporter(neat.StdOutReporter(True))
-        f_fitness = lambda genomes, config: eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data, n_weights_data, pbar_gens, p.generation)
-        winner = p.run(f_fitness, NGEN)
 
-        # Save data
-        os.makedirs(game_folder, exist_ok=True)
-        with open(os.path.join(game_folder, f'best_individual_run{run}_{ENEMY_MODE}.pkl'), 'wb') as f:
-            pickle.dump(winner, f)
-                
+        # Fitness function
+        f_fitness = lambda genomes, config: eval_genomes(genomes, config, run, stats_data, all_fitnesses, n_nodes_data, n_weights_data, pbar_gens, p.generation, env)
+
+        # Run evolution
+        best_individual = p.run(f_fitness, NGEN)
+
+        # Data handling
+        best_individuals.append(best_individual)
         df_stats = pd.DataFrame(stats_data)
         df_stats.columns = ['generation', 'max', 'mean', 'std']
-        df_stats.to_csv(os.path.join(game_folder, f'stats_run{run}_{ENEMY_MODE}.csv'), index=False)
+        list_df_stats.append(df_stats)
 
-    np.save(os.path.join(game_folder, f'all_fitnesses_{ENEMY_MODE}.npy'), fitnesses_data)
-    np.save(os.path.join(game_folder, f'all_n_nodes_{ENEMY_MODE}.npy'), n_nodes_data)
-    np.save(os.path.join(game_folder, f'all_n_weights_{ENEMY_MODE}.npy'), n_weights_data)
+    return all_fitnesses, best_individuals, list_df_stats, n_nodes_data, n_weights_data
 
+def train(name, folder, enemy_set, save_data=True, controller=CONTROLLER):
+    env = create_environment(name, enemy_set, controller)
+    all_fitnesses, best_individuals, list_df_stats, n_nodes_data, n_weights_data = run_evolutions(env, name, n_runs)
 
+    # Save data
+    if save_data:
+        np.save(os.path.join(folder, f'all_fitnesses_{ENEMY_MODE}.npy'), all_fitnesses)
+        np.save(os.path.join(folder, f'all_n_nodes_{ENEMY_MODE}.npy'), n_nodes_data)
+        np.save(os.path.join(folder, f'all_n_weights_{ENEMY_MODE}.npy'), n_weights_data)
+        for run, (best_individual, df_stats) in enumerate(zip(best_individuals, list_df_stats)):
+            with open(os.path.join(folder, f'best_individual_run{run}_{ENEMY_MODE}.pkl'), 'wb') as f:
+                pickle.dump(best_individual, f)
+            df_stats.to_csv(os.path.join(folder, f'stats_run{run}_{ENEMY_MODE}.csv'), index=False)
 
+    return all_fitnesses, best_individuals, list_df_stats
 
 if __name__ == '__main__':
-    # set up
-
+    # Setup
     set_names, enemy_sets = zip(*ENEMY_SETS.items())
     data_folders = [os.path.join('data', 'neat', f'{set_name}') for set_name in set_names]
     for folder in data_folders:
         os.makedirs(folder, exist_ok=True)
 
     for name, folder, enemy_set in zip(set_names, data_folders, enemy_sets):
+        game_folder = os.path.join(DATA_FOLDER, str(name))
+        os.makedirs(game_folder, exist_ok=True)
+
         n_runs = 1
         if '--runs' in sys.argv:
                 n_runs = int(sys.argv[sys.argv.index('--runs') + 1])
@@ -156,8 +171,7 @@ if __name__ == '__main__':
 
         # do different things depending on the mode
         if '--train' in sys.argv:
-            env = create_environment(name, enemy_set, controller_neat)
-            run_evolutions(n_runs, name)
+            train(name, folder, enemy_set)
 
         if '--test' in sys.argv:
             gains = np.zeros(n_repeats * n_runs)
