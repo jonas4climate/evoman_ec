@@ -17,37 +17,32 @@ import numpy as np
 import pickle
 import tqdm
 
-from evoman.environment import Environment
-from controller_neat import controller_neat
 from generalist_shared import create_environment
 
-EXP_NAME = 'neat_generalist'
-DATA_FOLDER = os.path.join('data', EXP_NAME)
-ENEMY_MODE = 'static'
-CONFIG_PATH = os.path.join('neat-config-feedforward.ini')
+# Load configuration
+from generalist_neat_config import *
 
-CONTROLLER = controller_neat
-
-
-# Two groups of enemies
-ENEMY_SETS = {
-    'set_1': [3, 5, 7],
-    'set_2': [2, 6, 7, 8]
-}
-
-# Custom fitness parameters
-FITNESS_GAMMA = 0.75
-FITNESS_ALPHA = 0.25
-
-GEN_INTERVAL_LOG = 10
-NGEN = 100 # TODO: make larger in practice
-
-SEED = 42
 np.random.seed(SEED)
 
-os.makedirs(DATA_FOLDER, exist_ok=True)
+def evaluate_individual(id, network, env):
+    agg_fit, p_life, e_life, time = env.play(pcont=network)
+    return agg_fit
 
-def eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data, n_weights_data, pbar_gens, generation, env):        
+def eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data, n_weights_data, pbar_gens, generation, env):  
+    """Evaluate the fitness of a list of genomes. Called as part of the NEAT evolution process.
+    
+    Args:
+        genomes (list): list of genomes to evaluate
+        config (neat.Config): configuration object for NEAT
+        run (int): current run number
+        stats_data (list): list to store statistics data
+        fitnesses_data (np.array): array to store fitness data
+        n_nodes_data (np.array): array to store number of nodes data
+        n_weights_data (np.array): array to store number of weights data
+        pbar_gens (tqdm.tqdm): progress bar for generations
+        generation (int): current generation number
+        env (Environment): Evoman environment
+    """      
     fitnesses = []
     n_nodes = []
     n_weights = []
@@ -84,11 +79,16 @@ def eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data,
     # print(f"In this generation the best network has {len(best_network.node_evals)} nodes. ID {best_id}. Fitness {max_fitness}")
     pbar_gens.update(1)
 
-def evaluate_individual(id, network, env):
-    agg_fit, p_life, e_life, time = env.play(pcont=network)
-    return agg_fit
-
-def run_evolutions(env, name, n_runs):
+def run_evolutions(env, name, n_runs=N_RUNS):
+    """Run multiple evolutions using NEAT for the given environment to generate a controlelr and returns data and solutions.
+    
+    Args:
+        env (Environment): Evoman environment
+        name (str): name of the environment
+        n_runs (int): number of runs to perform
+    Returns:
+        all_fitnesses (np.array): fitnesses of all individuals in all generations
+    """
     # Find out pop size
     config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                             neat.DefaultSpeciesSet, neat.DefaultStagnation,
@@ -136,7 +136,7 @@ def run_evolutions(env, name, n_runs):
 
 def train(name, folder, enemy_set, save_data=True, controller=CONTROLLER):
     env = create_environment(name, enemy_set, controller)
-    all_fitnesses, best_individuals, list_df_stats, n_nodes_data, n_weights_data = run_evolutions(env, name, n_runs)
+    all_fitnesses, best_individuals, list_df_stats, n_nodes_data, n_weights_data = run_evolutions(env, name)
 
     # Save data
     if save_data:
@@ -161,39 +161,10 @@ if __name__ == '__main__':
         game_folder = os.path.join(DATA_FOLDER, str(name))
         os.makedirs(game_folder, exist_ok=True)
 
-        n_runs = 1
-        if '--runs' in sys.argv:
-                n_runs = int(sys.argv[sys.argv.index('--runs') + 1])
-
-        n_repeats = 5
-        if '--repeats' in sys.argv:
-            n_repeats = int(sys.argv[sys.argv.index('--repeats') + 1])
-
-        # do different things depending on the mode
-        if '--train' in sys.argv:
-            train(name, folder, enemy_set)
-
-        if '--test' in sys.argv:
-            gains = np.zeros(n_repeats * n_runs)
-
-            config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
-                                neat.DefaultSpeciesSet, neat.DefaultStagnation,
-                                CONFIG_PATH)
-
-            for j in range(n_runs):
-                with open(os.path.join(DATA_FOLDER, f"{name}/best_individual_run{j}_static.pkl"), 'rb') as f:
-                    optimal_weights = pickle.load(f)
-
-                for k in range(n_repeats):
-                    net = neat.nn.FeedForwardNetwork.create(optimal_weights, config)
-                    _, pl, el, _ = env.play(pcont=net)
-                    # Gain = player life - enemy life
-                    gains[j*n_repeats + k] = pl - el
-
-            np.save(os.path.join(DATA_FOLDER, f'{name}', 'gains.npy'), gains)
+        train(name, folder, enemy_set)
 
         if '--watch' in sys.argv:
-            for run in range(n_runs):
+            for run in range(N_RUNS):
                 config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                                     neat.DefaultSpeciesSet, neat.DefaultStagnation,
                                     CONFIG_PATH)
