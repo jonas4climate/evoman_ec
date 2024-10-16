@@ -16,6 +16,8 @@ import numpy as np
 import pickle
 import tqdm
 
+from time import time as timefunction # NEW TIME TRACKING (See https://realpython.com/python-timer/)
+
 from generalist_shared import create_environment
 
 # Load configuration
@@ -27,7 +29,7 @@ def evaluate_individual(id, network, env):
     agg_fit, p_life, e_life, time = env.play(pcont=network)
     return agg_fit
 
-def eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data, n_weights_data, pbar_gens, generation, env):  
+def eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data, n_weights_data, list_generation_times, pbar_gens, generation, env):  
     """Evaluate the fitness of a list of genomes. Called as part of the NEAT evolution process.
     
     Args:
@@ -45,9 +47,14 @@ def eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data,
     fitnesses = []
     n_nodes = []
     n_weights = []
+    genome_times = []                                                                            # NEW: TIME TRACKING, define array for genome times
     best_network = None
     max_fitness = - np.inf
-    for id, genome in genomes:    
+
+    for id, genome in genomes:
+
+        time_start = timefunction()                                                              # NEW TIME TRACKING, start genome counter
+            
         # create a NN based on the genome provided
         net = neat.nn.FeedForwardNetwork.create(genome, config)    
         num_nodes = len(net.node_evals)
@@ -63,10 +70,20 @@ def eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data,
         n_weights.append(len(genome.connections))
         n_nodes.append(num_nodes)
 
+        time_total = timefunction()-time_start                                           # NEW TIME TRACKING, end timer of current genome
+        genome_times.append(time_total)                                                  # NEW TIME TRACKING, save current genome time
+
+
+
+    print('genome_times',genome_times,len(genome_times))
+    print('list_generation_times[run, generation, :]',list_generation_times[run, generation, :].shape)
+
+    list_generation_times[run, generation, :] = genome_times                            # NEW TIME TRACKING, save current genome times of generation
 
     n_nodes_data[run, generation, :len(n_nodes)] = [np.mean(n_nodes[i]) for i in range(len(n_nodes))]
     n_weights_data[run, generation, :len(n_weights)] = [np.mean(n_weights[i]) for i in range(len(n_weights))]
     fitnesses_data[run, generation, :len(fitnesses)] = fitnesses
+    
     mean_number_nodes = np.mean(n_nodes)
     max_fitness = max(fitnesses)
     mean_fitness = np.mean(fitnesses)
@@ -92,13 +109,16 @@ def run_evolutions(env, name, n_runs=N_RUNS):
     config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                             neat.DefaultSpeciesSet, neat.DefaultStagnation,
                             CONFIG_PATH)
+    
+    list_generation_times = np.zeros((n_runs, NGEN, config.pop_size))                                                                  # NEW TIME TRACKING (notice popsize is NOT doubled!)
+
     pop_size = int(config.pop_size * 2.0) # 100% margin for growth
     all_fitnesses = np.full((n_runs, NGEN, pop_size), np.nan)
     n_nodes_data = np.full((n_runs, NGEN, pop_size), np.nan)
     n_weights_data = np.full((n_runs, NGEN, pop_size), np.nan)
     best_individuals = []
     list_df_stats = []
-
+    
     pbar_gens = tqdm.tqdm(total=n_runs*NGEN, desc=f'Training generalist against enemies {name}', unit='gen', position=1)
         
     # COMPLEXITY_INDEX = 1
@@ -120,28 +140,33 @@ def run_evolutions(env, name, n_runs=N_RUNS):
         p.add_reporter(neat.StdOutReporter(True))
 
         # Fitness function
-        f_fitness = lambda genomes, config: eval_genomes(genomes, config, run, stats_data, all_fitnesses, n_nodes_data, n_weights_data, pbar_gens, p.generation, env)
+        f_fitness = lambda genomes, config: eval_genomes(genomes, config, run, stats_data, all_fitnesses, n_nodes_data, n_weights_data, list_generation_times, pbar_gens, p.generation, env)
 
         # Run evolution
         best_individual = p.run(f_fitness, NGEN)
+
+        
 
         # Data handling
         best_individuals.append(best_individual)
         df_stats = pd.DataFrame(stats_data)
         df_stats.columns = ['generation', 'max', 'mean', 'std']
         list_df_stats.append(df_stats)
-
-    return all_fitnesses, best_individuals, list_df_stats, n_nodes_data, n_weights_data
+        # TODO Append new 100 elements
+        
+    return all_fitnesses, best_individuals, list_df_stats, n_nodes_data, n_weights_data,list_generation_times
 
 def train(name, folder, enemy_set, save_data=True, controller=CONTROLLER):
     env = create_environment(name, enemy_set, controller)
-    all_fitnesses, best_individuals, list_df_stats, n_nodes_data, n_weights_data = run_evolutions(env, name)
+    all_fitnesses, best_individuals, list_df_stats, n_nodes_data, n_weights_data, list_generation_times = run_evolutions(env, name)
 
     # Save data
     if save_data:
         np.save(os.path.join(folder, f'all_fitnesses_{ENEMY_MODE}.npy'), all_fitnesses)
         np.save(os.path.join(folder, f'all_n_nodes_{ENEMY_MODE}.npy'), n_nodes_data)
         np.save(os.path.join(folder, f'all_n_weights_{ENEMY_MODE}.npy'), n_weights_data)
+        np.save(os.path.join(folder, f'all_n_times_{ENEMY_MODE}.npy'), list_generation_times)           # NEW TIME TRACKING
+        
         for run, (best_individual, df_stats) in enumerate(zip(best_individuals, list_df_stats)):
             with open(os.path.join(folder, f'best_individual_run{run}_{ENEMY_MODE}.pkl'), 'wb') as f:
                 pickle.dump(best_individual, f)
