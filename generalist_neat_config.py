@@ -21,7 +21,7 @@ N_REPEATS = 5
 
 ## Hyperparameter tuning configuration
 HP_CONFIG_FILE_NAME = 'best_config.ini'
-CONFIG_PATH = os.path.join('neat-config-feedforward.ini') # DEFAULT
+CONFIG_PATH = os.path.join(DATA_FOLDER, 'set_1', 'hp_crit_mean_of_max', 'best_config.ini') # os.path.join('neat-config-feedforward.ini') # DEFAULT
 HP_RANGES = {
     'NEAT.pop_size': (10, 200),
     'DefaultGenome.conn_add_prob': (0.0, 1.0),
