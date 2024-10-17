@@ -1,12 +1,3 @@
-"""
-TODO:
-- make something better than the checkpoints list currently using
-- make sure that the loading of population is working
-- try out the --test option ?
-- hyperparameter optimization 
-    - I think mainly node_add_prob is interesting + parameters that are similar to what is used in CMA?
-- keeping track of time per generation (or at least extract that data) + improvement of fitness for "computational efficiency"
-"""
 
 import os
 import sys
@@ -48,13 +39,14 @@ def eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data,
     fitnesses = np.zeros(n)
     n_nodes = np.zeros(n)
     n_weights = np.zeros(n)
-    genome_times = np.zeros(n)                                                                       # NEW: TIME TRACKING, define array for genome times
+    genome_times = np.zeros(n)                                                                   # NEW: TIME TRACKING, define array for genome times
     best_network = None
     max_fitness = - np.inf
 
     for i, (id, genome) in enumerate(genomes):
 
-        time_start = timefunction()                                                              # NEW TIME TRACKING, start genome counter
+        time_start = timefunction()                      # NEW TIME TRACKING, start genome counter
+        time_start_generation = timefunction()           # NEW TIME TRACKING, per generation                                                  
             
         # create a NN based on the genome provided
         net = neat.nn.FeedForwardNetwork.create(genome, config)    
@@ -66,28 +58,30 @@ def eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data,
             max_fitness = fitness
             best_network = net
             best_id = id
+            best_genome = genome
+        
 
         fitnesses[i] = genome.fitness # To keep track of fitness
         n_weights[i] = len(genome.connections)
         n_nodes[i] = num_nodes
 
-        time_total = timefunction()-time_start                                           # NEW TIME TRACKING, end timer of current genome
-        genome_times[i] = time_total                                               # NEW TIME TRACKING, save current genome time
+        time_total_genome = timefunction()-time_start                                           # NEW TIME TRACKING, end timer of current genome
+        genome_times[i] = time_total_genome                                                     # NEW TIME TRACKING, save current genome time                                            
 
     generation_times_data[run, generation, :len(genome_times)] = genome_times
     n_nodes_data[run, generation, :len(n_nodes)] = [np.mean(n_nodes[i]) for i in range(len(n_nodes))]
     n_weights_data[run, generation, :len(n_weights)] = [np.mean(n_weights[i]) for i in range(len(n_weights))]
     fitnesses_data[run, generation, :len(fitnesses)] = fitnesses
     
+    time_total_generation = timefunction()-time_start_generation # after running for one generation, save total time in the csv
     mean_number_nodes = np.mean(n_nodes)
     max_fitness = max(fitnesses)
     mean_fitness = np.mean(fitnesses)
     std_fitness = np.std(fitnesses)
     
-    row_data = [generation, max_fitness, mean_fitness, std_fitness]
+    row_data = [generation, max_fitness, mean_fitness, std_fitness, time_total_generation]
     stats_data.append(row_data)
 
-    # print(f"In this generation the best network has {len(best_network.node_evals)} nodes. ID {best_id}. Fitness {max_fitness}")
     pbar_gens.update(1)
 
 def run_evolutions(env, config, name, pbar_pos=2, n_runs=N_RUNS, n_gens=NGEN, show_output=True):
@@ -133,7 +127,7 @@ def run_evolutions(env, config, name, pbar_pos=2, n_runs=N_RUNS, n_gens=NGEN, sh
         # Data handling
         best_individuals.append(best_individual)
         df_stats = pd.DataFrame(stats_data)
-        df_stats.columns = ['generation', 'max', 'mean', 'std']
+        df_stats.columns = ['generation', 'max', 'mean', 'std', 'time']
         list_df_stats.append(df_stats)
         # TODO Append new 100 elements
         
