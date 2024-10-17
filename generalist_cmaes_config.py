@@ -12,13 +12,13 @@ ENEMY_SETS = {
 }
 
 ## Training configuration
-N_RUNS = 5 # Number of repeated runs in training
+N_RUNS = 10 # Number of repeated runs in training
 
 ## Hyperparameter values for CMA-ES
-HP_LOAD_FROM_FILE = True # If True, ignores hardcoded values below
-POPULATION_SIZE = 100 # (tune-able)
-SIGMA = 2.5 # (tune-able)
-NGEN = 200 # (not tune-able)
+HP_LOAD_FROM_FILE = False # If True, ignores hardcoded values below
+POPULATION_SIZE = 58 # (tune-able)
+SIGMA = 0.7336350010265406 # (tune-able)
+NGEN = 50 # (not tune-able)
 
 ## Hyperparameter tuning configuration
 HP_POP_SIZE_RANGE = (10, 200) # Tuning range for population size

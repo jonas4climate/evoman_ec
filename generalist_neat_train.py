@@ -77,7 +77,6 @@ def eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data,
     row_data = [generation, max_fitness, mean_fitness, std_fitness]
     stats_data.append(row_data)
 
-    # print(f"In this generation the best network has {len(best_network.node_evals)} nodes. ID {best_id}. Fitness {max_fitness}")
     if pbar_gens:
         pbar_gens.update(1)
 
@@ -115,8 +114,8 @@ def run_evolutions(env, config, name, pbar_pos=2, n_runs=N_RUNS, n_gens=NGEN, sh
         # Statistic gathering and output
         stats = neat.StatisticsReporter()
         p.add_reporter(stats)
-        if show_output:
-            p.add_reporter(neat.StdOutReporter(True))
+        #if show_output:
+            #p.add_reporter(neat.StdOutReporter(True))
 
         # Fitness function
         f_fitness = lambda genomes, config: eval_genomes(genomes, config, run, stats_data, all_fitnesses, n_nodes_data, n_weights_data, all_times_elapsed, pbar_gens, p.generation, env)

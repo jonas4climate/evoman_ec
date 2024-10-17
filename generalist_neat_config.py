@@ -11,13 +11,13 @@ CONTROLLER = controller_neat
 # Two groups of enemies
 ENEMY_SETS = {
     'set_1': [3, 5, 7],
-    # 'set_2': [2, 6, 7, 8] # TODO fix
+    'set_2': [2, 6, 7, 8] # TODO fix
 }
 
 GEN_INTERVAL_LOG = 10
-NGEN = 200
-N_RUNS = 3
-N_REPEATS = 5
+NGEN = 50
+N_RUNS = 10
+N_REPEATS = 1
 
 ## Hyperparameter tuning configuration
 HP_CONFIG_FILE_NAME = 'best_config.ini'
