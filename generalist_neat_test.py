@@ -11,7 +11,8 @@ from generalist_neat_config import *
 np.random.seed(SEED)
 
 def test(name, folder, enemy_set):
-    env = create_environment(name, enemy_set, CONTROLLER)
+    all_enemies = [1, 2, 3, 4, 5, 6, 7, 8]
+    env = create_environment(name, all_enemies, CONTROLLER)
     gains = np.zeros(N_REPEATS * N_RUNS)
 
     config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
