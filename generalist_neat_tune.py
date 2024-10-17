@@ -5,6 +5,7 @@ import numpy as np
 import configparser
 import neat
 import time
+import tqdm
 import multiprocessing
 import optuna
 from optuna.samplers import TPESampler
@@ -44,7 +45,7 @@ def run_trial_in_subprocess(trial, conn, config, set_name, enemy_set, f_criterio
     # Run evolution
     pbar_pos = trial.number % HP_PARALLEL_RUNS
     time.sleep(0.01*trial.number)
-    data = run_evolutions(env, config, set_name, pbar_pos, HP_N_RUNS, HP_NGENS, show_output=False)
+    data = run_evolutions(env, config, set_name, pbar_pos, HP_N_RUNS, HP_NGENS, show_output=False, show_tqdm=False)
     all_fitnesses = data[0]
 
     # Calculate fitness and cast into float for optuna
@@ -90,7 +91,9 @@ def hyperparameter_search(set_name, data_folder, enemy_set):
         config: CMAESConfig object with the best hyperparameters
     """
 
-    def run_trial(trial, parallel=False):
+    pbar = tqdm.tqdm(total=HP_N_TRIALS, desc=f'Hyperparameter tuning for {set_name}', unit='trial')
+
+    def run_trial(trial, pbar, parallel=False):
         """Wrapper function for running a single trial of hyperparameter tuning.
         Args:
             trial (optuna.Trial): optuna trial object for passing trial number and tracking data within optuna
@@ -128,6 +131,8 @@ def hyperparameter_search(set_name, data_folder, enemy_set):
             process.start()
             hp_fitness = parent_conn.recv()
             process.join()
+            pbar.update(1)
+            print(f"Trial {trial.number} completed with fitness {hp_fitness}")
 
             # Cleanup
             process.close()
@@ -146,7 +151,7 @@ def hyperparameter_search(set_name, data_folder, enemy_set):
 
     # Run hyperparameter tuning
     study = optuna.create_study(direction='maximize', sampler=TPESampler())
-    study.optimize(lambda trial: run_trial(trial, parallel), n_trials=HP_N_TRIALS, n_jobs=HP_PARALLEL_RUNS, gc_after_trial=True)
+    study.optimize(lambda trial: run_trial(trial, pbar, parallel), n_trials=HP_N_TRIALS, n_jobs=HP_PARALLEL_RUNS, gc_after_trial=True)
 
     # Store data
     print(f"Saving hyperparameter tuning data to {data_folder}...") 

@@ -77,9 +77,11 @@ def eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data,
     row_data = [generation, max_fitness, mean_fitness, std_fitness]
     stats_data.append(row_data)
 
-    pbar_gens.update(1)
+    # print(f"In this generation the best network has {len(best_network.node_evals)} nodes. ID {best_id}. Fitness {max_fitness}")
+    if pbar_gens:
+        pbar_gens.update(1)
 
-def run_evolutions(env, config, name, pbar_pos=2, n_runs=N_RUNS, n_gens=NGEN, show_output=True):
+def run_evolutions(env, config, name, pbar_pos=2, n_runs=N_RUNS, n_gens=NGEN, show_output=True, show_tqdm=True):
     """Run multiple evolutions using NEAT for the given environment to generate a controlelr and returns data and solutions.
     
     Args:
@@ -97,7 +99,10 @@ def run_evolutions(env, config, name, pbar_pos=2, n_runs=N_RUNS, n_gens=NGEN, sh
     best_individuals = []
     list_df_stats = []
     
-    pbar_gens = tqdm.tqdm(total=n_runs*n_gens, desc=f'(Process {pbar_pos-1}) Training generalist against enemies {name}', unit='gen', position=pbar_pos)
+    if show_tqdm:
+        pbar_gens = tqdm.tqdm(total=n_runs*n_gens, desc=f'(Process {pbar_pos-1}) Training generalist against enemies {name}', unit='gen', position=pbar_pos)
+    else:
+        pbar_gens = None
         
     # COMPLEXITY_INDEX = 1
 

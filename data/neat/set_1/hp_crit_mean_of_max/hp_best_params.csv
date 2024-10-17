@@ -1,2 +1,2 @@
-pop_size,conn_add_prob,conn_delete_prob,node_add_prob,node_delete_prob
-63,0.6672460227186698,0.8505268568386187,0.9061284805781818,0.8072989925970494
+pop_size,conn_add_prob,conn_delete_prob,node_add_prob,node_delete_prob,num_hidden,weight_init_mean,weight_init_stdev,weight_mutate_power,enabled_mutate_rate,compatibility_threshold
+176,0.11418744931923913,0.2549014405551832,0.9910746623504666,0.5885849153769156,9,-0.6645001089568773,0.7148908558863448,1.2753344255963164,0.039722354645182534,6.563394634392941
