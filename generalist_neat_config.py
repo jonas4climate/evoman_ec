@@ -17,7 +17,7 @@ ENEMY_SETS = {
 GEN_INTERVAL_LOG = 10
 NGEN = 50
 N_RUNS = 10
-N_REPEATS = 1
+N_REPEATS = 10
 
 ## Hyperparameter tuning configuration
 HP_CONFIG_FILE_NAME = 'best_config.ini'

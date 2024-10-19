@@ -15,7 +15,7 @@ ENEMY_SETS = {
 N_RUNS = 10 # Number of repeated runs in training
 
 ## Hyperparameter values for CMA-ES
-HP_LOAD_FROM_FILE = False # If True, ignores hardcoded values below
+HP_LOAD_FROM_FILE = True # If True, ignores hardcoded values below
 POPULATION_SIZE = 58 # (tune-able)
 SIGMA = 0.7336350010265406 # (tune-able)
 NGEN = 50 # (not tune-able)
@@ -26,7 +26,7 @@ HP_SIGMA_RANGE = (0.1, 10.0) # Tuning range for sigma
 HP_N_RUNS = 3 # Number of runs in hyperparameter tuning to apply criterion for fitness
 HP_N_TRIALS = 10 # Number of trials (tuples of hyperparameters to assess) in hyperparameter tuning
 HP_PARALLEL_RUNS = 6 # os.cpu_count() # 1 for serial implementation # Number of parallel runs to spawn during tuning
-HP_FITNESS_CRITERION = crit_mean_of_max # Fitness criterion applied to fitness matrix. Alternatives defined in util.py
+HP_FITNESS_CRITERION = crit_mean # Fitness criterion applied to fitness matrix. Alternatives defined in util.py
 
 ## Controller parameters
 NUM_HIDDEN = 10  # Number of hidden layer neurons

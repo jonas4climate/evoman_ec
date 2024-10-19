@@ -4,6 +4,7 @@ import sys
 import tqdm
 import numpy as np
 import pandas as pd
+import time
 
 from deap import base, creator, tools, cma
 from generalist_shared import create_environment
@@ -96,6 +97,8 @@ def run_evolutions(env, config, n_runs=1, pbar_pos=2, parallel=False):
 
     # store all fitness values of the population across generations and runs
     all_fitnesses = np.zeros((n_runs, NGEN, config.population_size))
+    # store all time elapsed op each generation and run
+    all_times_elapsed = np.zeros((n_runs, NGEN))
     # store weights of HoF-best individual for each run
     best_individuals = np.zeros((n_runs, N))
     # store statistics dataframes for each run
@@ -123,6 +126,9 @@ def run_evolutions(env, config, n_runs=1, pbar_pos=2, parallel=False):
         # store fitness values of population for each generation
         run_fitnesses = np.zeros((NGEN, config.population_size))
 
+        # store time elapsed for each generation
+        run_time_elapsed = np.zeros(NGEN)
+
         # Reset the toolbox to not contaminate runs
         toolbox = setup_toolbox(N, env, config)
 
@@ -137,6 +143,10 @@ def run_evolutions(env, config, n_runs=1, pbar_pos=2, parallel=False):
 
         # Main loop running across all generations, stopping criterion is NGEN
         for gen in range(NGEN):
+
+            # Time at the start of the generation
+            start_time = time.time()
+
             # Generate new population and evaluate fitness
             population = toolbox.generate()
             fitnesses = list(map(toolbox.evaluate, population))
@@ -148,16 +158,20 @@ def run_evolutions(env, config, n_runs=1, pbar_pos=2, parallel=False):
             # Update Hall of Fame
             hof.update(population)
 
+            # Time elapsed for the generation
+            time_elapsed = time.time() - start_time
+
             # Store data
             record = stats.compile(population)
             logbook.record(gen=gen, nevals=len(population), **record)
             run_fitnesses[gen] = [ind.fitness.values[0] for ind in population]
+            run_time_elapsed[gen] = time_elapsed
 
             pbar_gens.update(1)
 
         best_individual = hof[0]
         run_stats = pd.DataFrame(logbook)
-        return run_fitnesses, best_individual, run_stats
+        return run_fitnesses, best_individual, run_stats, run_time_elapsed
 
 
     # Run evolution for each run
@@ -167,15 +181,16 @@ def run_evolutions(env, config, n_runs=1, pbar_pos=2, parallel=False):
         pbar_runs = tqdm.tqdm(total=n_runs, desc='Runs', unit='run', position=pbar_pos)
         for run in range(n_runs):
             # Run evolution once
-            run_fitnesses, best_individual, run_stats = run_evolution(run, env, config)
+            run_fitnesses, best_individual, run_stats, run_time_elapsed = run_evolution(run, env, config)
 
             # Gather data
             all_fitnesses[run] = run_fitnesses
+            all_times_elapsed[run] = run_time_elapsed
             best_individuals[run] = best_individual
             list_run_stats.append(run_stats)
             pbar_runs.update(1)
 
-    return all_fitnesses, best_individuals, list_run_stats
+    return all_fitnesses, all_times_elapsed, best_individuals, list_run_stats
 
 def load_hyperparameters():
     """Helper function for returning hyperparameters for the training runs.
@@ -183,8 +198,9 @@ def load_hyperparameters():
         config: CMAESConfig object with the hyperparameters
     """
     if HP_LOAD_FROM_FILE:
-        print('Loading best hyperparameter values found during tuning from file...')
-        file_path = os.path.join(folder, 'hp_best_params.csv')
+        set_1_folder = os.path.join('data', 'cmaes', 'set_1', f'hp_{HP_FITNESS_CRITERION.__name__}')
+        print('Loading best hyperparameter values found during tuning (on set2) from file...')
+        file_path = os.path.join(set_1_folder, 'hp_best_params.csv')
         print(file_path)
         try:
             with open(file_path, 'r') as f:
@@ -206,16 +222,17 @@ def train(config, name, folder, enemy_set, controller=CONTROLLER):
     # Create the environment
     env = create_environment(name, enemy_set, controller)
     # Run evolution
-    all_fitnesses, best_individuals, list_df_stats = run_evolutions(env, config, n_runs=N_RUNS)
+    all_fitnesses, all_times_elapsed, best_individuals, list_df_stats = run_evolutions(env, config, n_runs=N_RUNS)
 
     # Save data
     np.save(os.path.join(folder, 'train_all_fitnesses.npy'), all_fitnesses)
+    np.save(os.path.join(folder, 'train_all_times_elapsed.npy'), all_times_elapsed)
     np.save(os.path.join(folder, 'train_best_individuals.npy'), best_individuals)
     for run, stats in enumerate(list_df_stats):
         with open(os.path.join(folder, f"train_stats_run{run + 1}.csv"), 'w') as f:
             stats.to_csv(f, index=False)
 
-    return all_fitnesses, best_individuals, list_df_stats
+    return all_fitnesses, all_times_elapsed, best_individuals, list_df_stats
 
 if __name__ == '__main__':
     # Setup
