@@ -21,3 +21,11 @@ def create_environment(experiment_name, enemy_set, controller, visuals=False):
                         clockprec="low",
                         visuals=visuals)
     return env
+
+# Has to be done this way cause Evoman's Environment consolidates all output values into a single value
+def create_singlemode_environment(experiment_name, enemy, controller):
+    return Environment(experiment_name=experiment_name,
+                enemies=[enemy],
+                player_controller=controller(),
+                savelogs="no",
+                logs="off")
