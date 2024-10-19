@@ -40,9 +40,10 @@ def eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data,
     n_weights = np.zeros(n)
     max_fitness = - np.inf
 
+    time_start = time.time()                      # NEW TIME TRACKING, start genome counter
+
     for i, (id, genome) in enumerate(genomes):
 
-        time_start = time.time()                      # NEW TIME TRACKING, start genome counter                                               
             
         # create a NN based on the genome provided
         net = neat.nn.FeedForwardNetwork.create(genome, config)    
@@ -59,7 +60,6 @@ def eval_genomes(genomes, config, run, stats_data, fitnesses_data, n_nodes_data,
         fitnesses[i] = genome.fitness # To keep track of fitness
         n_weights[i] = len(genome.connections)
         n_nodes[i] = num_nodes
-
 
     generation_time = time.time() - time_start                                                   # NEW TIME TRACKING, save current generation time                                            
 
