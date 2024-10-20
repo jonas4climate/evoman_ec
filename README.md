@@ -3,7 +3,7 @@
 CMA-ES is a low-maintenance evolutionary strategy that requires little to no fine-tuning to perform numerical optimization but takes in a fixed-size controller architecture. On the other hand, while NEAT is capable of adjusting this architecture to enable higher performance, its large parameter space creates new challenges. In this project, we compare performances of these two algorithms on the Evoman video game playing framework, a testbed for optimization algorithms. A demo can be found [here](https://www.youtube.com/watch?v=ZqaMjd1E4ZI). For more information, please refer to the original repository [here](https://github.com/karinemiras/evoman_framework).
 
 ## Task I and Task II
-The project consisted of two parts: training a specialist agent in Task I and training a generalis agent in Task II. Furthermore, in Task I we looked into the differences between the actions taken by the fittest agent of both algorithms, while in Task II we were interested in the difference in computational efficiency of the two algorithms.
+The project consisted of two parts: training a specialist agent in Task I and training a generalist agent in Task II. Furthermore, in Task I, we looked into the differences between the actions taken by the fittest agent of both algorithms, while in Task II we were interested in the difference in computational efficiency of the two algorithms.
 
 ### Setup
 
